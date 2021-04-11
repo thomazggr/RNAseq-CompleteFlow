@@ -1,26 +1,29 @@
 # @ Thomas W. Battaglia
 # tb1280@nyu.edu
 
+# Install R base and R dev
 # Install BiocManager first
-# BiocManager::install(c())
-# Install and load required libraries
-biocLite("DESeq2") ; library(DESeq2)
-biocLite("ggplot2") ; library(ggplot2)
-biocLite("clusterProfiler") ; library(clusterProfiler)
-biocLite("biomaRt") ; library(biomaRt)
-biocLite("ReactomePA") ; library(ReactomePA)
-biocLite("DOSE") ; library(DOSE)
-biocLite("KEGG.db") ; library(KEGG.db)
-biocLite("org.Mm.eg.db") ; library(org.Mm.eg.db)
-biocLite("org.Hs.eg.db") ; library(org.Hs.eg.db)
-biocLite("pheatmap") ; library(pheatmap)
-biocLite("genefilter") ; library(genefilter)
-biocLite("RColorBrewer") ; library(RColorBrewer)
-biocLite("GO.db") ; library(GO.db)
-biocLite("topGO") ; library(topGO)
-biocLite("dplyr") ; library(dplyr)
-biocLite("gage") ; library(gage)
-biocLite("ggsci") ; library(ggsci)
+# sudo apt install r-cran-xml r-cran-xml2 libxml2-dev libcurl4-openssl-dev libssl-dev 
+# install.packages(c("httr", "curl", "RCurl", "openssl", "XML"))
+# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","biomaRt","ReactomePA","ggsci","gage","dplyr","topGO","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","genefilter","GO.db","KEGG.db","RColorBrewer"))
+# Load required libraries
+library(DESeq2)
+library(ggplot2)
+library(clusterProfiler)
+library(biomaRt)
+library(ReactomePA)
+library(DOSE)
+library(KEGG.db)
+library(org.Mm.eg.db)
+library(org.Hs.eg.db)
+library(pheatmap)
+library(genefilter)
+library(RColorBrewer)
+library(GO.db)
+library(topGO)
+library(dplyr)
+library(gage)
+library(ggsci)
 
 
 # - - - - - - - - - - - - - 
@@ -28,10 +31,10 @@ biocLite("ggsci") ; library(ggsci)
 # - - - - - - - - - - - - - 
 # - skip first row (general command info)
 # - make row names the gene identifiers
-countdata <- read.table("example/final_counts.txt", header = TRUE, skip = 1, row.names = 1)
+countdata <- read.table("rnaseq_workflow/results/5_final_counts/final_counts.txt", header = TRUE, skip = 1, row.names = 1)
 
 # Remove .bam + '..' from column identifiers
-colnames(countdata) <- gsub(".bam", "", colnames(countdata), fixed = T)
+colnames(countdata) <- gsub(".sam", "", colnames(countdata), fixed = T)
 colnames(countdata) <- gsub("..", "", colnames(countdata), fixed = T)
 
 # Remove length/char columns
@@ -46,7 +49,7 @@ head(countdata)
 # - - - - - - - - - - - - - 
 
 # Import and make row names the matching sampleID's from the countdata
-metadata <- read.delim("example/metadata.txt", row.names = 1)
+metadata <- read.delim("rnaseq_workflow/DE_analysis/metadata.txt", row.names = 1)
 
 # Add sampleID's to the mapping file
 metadata$sampleid <- row.names(metadata)
@@ -89,9 +92,10 @@ mcols(results, use.names = T)
 # - - - - - - - - - - - - - 
 library(AnnotationDbi)
 library(org.Mm.eg.db)
+library(org.Hs.eg.db)
 
 # Add gene full name
-results$description <- mapIds(x = org.Mm.eg.db,
+results$description <- mapIds(x = org.Hs.eg.db,
                               keys = row.names(results),
                               column = "GENENAME",
                               keytype = "SYMBOL",
@@ -101,7 +105,7 @@ results$description <- mapIds(x = org.Mm.eg.db,
 results$symbol <- row.names(results)
 
 # Add ENTREZ ID
-results$entrez <- mapIds(x = org.Mm.eg.db,
+results$entrez <- mapIds(x = org.Hs.eg.db,
                          keys = row.names(results),
                          column = "ENTREZID",
                          keytype = "SYMBOL",
@@ -139,19 +143,6 @@ write.table(x = as.data.frame(results_sig),
             quote = F,
             col.names = NA)
 
-
-# - - - - - - - - - - - - - 
-# PCA plot
-# - - - - - - - - - - - - - 
-# Convert all samples to rlog
-ddsMat_rlog <- rlog(ddsMat, blind = FALSE)
-
-# Plot PCA by column variable
-plotPCA(ddsMat_rlog, intgroup = "Group", ntop = 500) +
-  theme_bw() +
-  ggsave('figures/pca_plot.png')
-
-
 # - - - - - - - - - - - - - 
 # Heatmap plot
 # - - - - - - - - - - - - - 
@@ -163,7 +154,7 @@ library(RColorBrewer)
 ddsMat_rlog <- rlog(ddsMat, blind = FALSE)
 
 # Gather 30 significant genes and make matrix
-mat <- assay(ddsMat_rlog[row.names(res_sig)])[1:30, ]
+mat <- assay(ddsMat_rlog[row.names(results_sig)])[1:30, ]
 
 # Choose which column variables you want to annotate the columns by.
 annotation_col = data.frame(
@@ -174,7 +165,7 @@ annotation_col = data.frame(
 
 # Specify colors you want to annotate the columns by.
 ann_colors = list(
-  Group = c("LoGlu" = "blue", "HiGlu" = "orange"),
+  Group = c("case1" = "blue", "case2" = "orange"),
   Replicate = c(Rep1 = "red", Rep2 = "green")
 )
 
@@ -185,7 +176,9 @@ pheatmap(mat = mat,
          scale = "row", 
          annotation_col = annotation_col, 
          annotation_colors = ann_colors, 
-         show_colnames = F)
+         show_colnames = F,
+         filename="heatmap.png",
+         silent=TRUE)
 
 
 # - - - - - - - - - - - - - 
@@ -206,43 +199,26 @@ data <- na.omit(data)
 # Color the points which are up or down
 ## If fold-change > 0 and pvalue > 1.3 (Increased significant)
 ## If fold-change < 0 and pvalue > 1.3 (Decreased significant)
-data <- mutate(data, color = case_when(data$lfc > 0 & data$pval > 1.3 ~ "Increased",
-                                       data$lfc < 0 & data$pval > 1.3 ~ "Decreased",
+data <- mutate(data, color = case_when(data$lfc > 1 & data$pval > 1.3 ~ "Increased",
+                                       data$lfc < 1 & data$pval > 1.3 ~ "Decreased",
                                        data$pval < 1.3 ~ "nonsignificant"))
 # Make a basic ggplot2 object with x-y values
 vol <- ggplot(data, aes(x = lfc, y = pval, color = color))
 
 # Add ggplot2 layers
-vol +   
+volcano_plot <- vol +   
   ggtitle(label = "Volcano Plot", subtitle = "Colored by fold-change direction") +
   geom_point(size = 2.5, alpha = 0.8, na.rm = T) +
   scale_color_manual(name = "Directionality",
                      values = c(Increased = "#008B00", Decreased = "#CD4F39", nonsignificant = "darkgray")) +
   theme_bw(base_size = 14) + # change overall theme
   theme(legend.position = "right") + # change the legend
-  xlab(expression(log[2]("LoGlu" / "HiGlu"))) + # Change X-Axis label
+  xlab(expression(log[2]("case1" / "case2"))) + # Change X-Axis label
   ylab(expression(-log[10]("adjusted p-value"))) + # Change Y-Axis label
   geom_hline(yintercept = 1.3, colour = "darkgrey") + # Add p-adj value cutoff line
   scale_y_continuous(trans = "log1p") # Scale yaxis due to large p-values
 
-
-# - - - - - - - - - - - - - 
-# MA plot
-# - - - - - - - - - - - - - 
-plotMA(res, ylim = c(-5, 5))
-
-
-# - - - - - - - - - - - - - 
-# Single gene plot
-# - - - - - - - - - - - - - 
-# Convert all samples to rlog
-ddsMat_rlog <- rlog(ddsMat, blind = FALSE)
-
-# Get gene with highest expression
-top_gene <- rownames(res)[which.min(res$log2FoldChange)]
-
-# Plot single gene
-plotCounts(ddsMat, gene = top_gene, intgroup = "Group")
+ggsave("volcano.png", plot=volcano_plot, device="png")
 
 
 # - - - - - - - - - - - - - - -
@@ -255,7 +231,7 @@ library(ReactomePA)
 library(KEGG.db)
 library(DOSE)
 library(org.Mm.eg.db)
-library(pathview)
+library(org.Hs.eg.db)
 
 # Remove any genes that do not have any entrez identifiers
 results_sig_entrez <- subset(results_sig, is.na(entrez) == FALSE)
@@ -271,36 +247,38 @@ names(gene_matrix) <- results_sig_entrez$entrez
 # Enrich with KEGG database
 # - - - - - - - - - - - - -
 kegg_enrich <- enrichKEGG(gene = names(gene_matrix),
-                          organism = 'mouse',
-                          pvalueCutoff = 0.05, 
-                          readable = TRUE)
+                          organism = 'hsa',
+                          pvalueCutoff = 0.05)
 
 # Get table of results
-head(summary(kegg_enrich))
+head(as.data.frame(kegg_enrich))
 
 # KEGG plot
-kegg_plot <- barplot(kegg_enrich, 
+png(file="kegg_barplot.png")
+barplot(kegg_enrich, 
         drop = TRUE, 
         showCategory = 10, 
         title = "KEGG Enrichment Pathways",
         font.size = 8)
+dev.off()
 
 
 # - - - - - - - - - - - - -
 # Enrich with GO
 # - - - - - - - - - - - - -
 go_enrich <- enrichGO(gene = names(gene_matrix), 
-                      organism = 'mouse', 
-                      readable = TRUE,
+                      OrgDb = "org.Hs.eg.db",
                       ont = "BP",
                       pvalueCutoff = 0.05)
 
 # Get table of results
-head(summary(go_enrich))
+head(as.data.frame(go_enrich))
 
 # Plot results
-go_plot <- barplot(go_enrich, 
+png(file="GO_barplot.png")
+barplot(go_enrich, 
         drop = TRUE, 
         showCategory = 10, 
         title = "GO Biological Pathways",
         font.size = 8)
+dev.off()

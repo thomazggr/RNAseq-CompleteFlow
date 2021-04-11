@@ -1,16 +1,16 @@
 # Downloads human genome annotation to the exact folder
 echo "Downloading .gtf annotation file, please wait..."
-#wget -P annotation/ ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_37/gencode.v37.annotation.gtf.gz
+wget -P annotation/ ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_37/gencode.v37.annotation.gtf.gz
 echo "Finished downloading annotation!"
 
 # Downloads indexed genome from Hisat2 AWS
 echo "Downloading indexed human genome from Hisat2, please wait..."
-#wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/grch38_genome.tar.gz
+wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/grch38_genome.tar.gz
 echo "Genome indexes has been downloaded!"
 
 # Set your samples here! Set the name before file format .fastq, e.g.: sample_1.fastq, so it will be SAMPLES = "sample_1"
 # If you have multiple samples, set with only 1 (one) space between names, as the next example: SAMPLES = "sample_1 sample_2 sample_3"
-SAMPLES="case3"
+SAMPLES="sample1 sample2 sample3"
 
 for SAMPLE in $SAMPLES; do
     # Starting fastqc
