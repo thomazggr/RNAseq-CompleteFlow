@@ -31,7 +31,7 @@ library(ggsci)
 # - - - - - - - - - - - - - 
 # - skip first row (general command info)
 # - make row names the gene identifiers
-countdata <- read.table("rnaseq_workflow/results/5_final_counts/final_counts.txt", header = TRUE, skip = 1, row.names = 1)
+countdata <- read.table("./rnaseq_workflow/results/5_final_counts/final_counts.txt", header = TRUE, skip = 1, row.names = 1)
 
 # Remove .bam + '..' from column identifiers
 colnames(countdata) <- gsub(".sam", "", colnames(countdata), fixed = T)
@@ -49,7 +49,7 @@ head(countdata)
 # - - - - - - - - - - - - - 
 
 # Import and make row names the matching sampleID's from the countdata
-metadata <- read.delim("rnaseq_workflow/DE_analysis/metadata.txt", row.names = 1)
+metadata <- read.delim("./DE_analysis/metadata.txt", row.names = 1)
 
 # Add sampleID's to the mapping file
 metadata$sampleid <- row.names(metadata)
@@ -68,6 +68,7 @@ head(metadata)
 # - colData : sample metadata in the dataframe with row names as sampleID's
 # - design : The design of the comparisons to use. 
 #            Use (~) before the name of the column variable to compare
+print("Run DESeq Matrix")
 ddsMat <- DESeqDataSetFromMatrix(countData = countdata,
                                  colData = metadata,
                                  design = ~Group)
@@ -75,6 +76,7 @@ ddsMat <- DESeqDataSetFromMatrix(countData = countdata,
 
 # Find differential expressed genes
 # Run DESEq2
+print("Run DESeq")
 ddsMat <- DESeq(ddsMat)
 
 # Get results from testing with FDR adjust pvalues
@@ -114,28 +116,28 @@ results$entrez <- mapIds(x = org.Hs.eg.db,
 # Subset for only significant genes (q < 0.05)
 results_sig <- subset(results, padj < 0.05)
 head(results_sig)
-
+print("Generate normalized counts")
 # Write normalized gene counts to a .txt file
 write.table(x = as.data.frame(counts(ddsMat), normalized = T), 
             file = 'normalized_counts.txt', 
             sep = '\t', 
             quote = F,
             col.names = NA)
-
+print("Generate normalized counts sign")
 # Write significant normalized gene counts to a .txt file
 write.table(x = counts(ddsMat[row.names(results_sig)], normalized = T), 
             file = 'normalized_counts_significant.txt', 
             sep = '\t', 
             quote = F, 
             col.names = NA)
-
+print("Generate gene annotated")
 # Write the annotated results table to a .txt file
 write.table(x = as.data.frame(results), 
             file = "results_gene_annotated.txt", 
             sep = '\t', 
             quote = F,
             col.names = NA)
-
+print("Generate gene annotated sign")
 # Write significant annotated results table to a .txt file
 write.table(x = as.data.frame(results_sig), 
             file = "results_gene_annotated_significant.txt", 
@@ -168,7 +170,7 @@ ann_colors = list(
   Group = c("case1" = "blue", "case2" = "orange"),
   Replicate = c(Rep1 = "red", Rep2 = "green")
 )
-
+print("Generate heatmap")
 # Make Heatmap with pheatmap function.
 # See more in documentation for customization
 pheatmap(mat = mat, 
@@ -217,7 +219,7 @@ volcano_plot <- vol +
   ylab(expression(-log[10]("adjusted p-value"))) + # Change Y-Axis label
   geom_hline(yintercept = 1.3, colour = "darkgrey") + # Add p-adj value cutoff line
   scale_y_continuous(trans = "log1p") # Scale yaxis due to large p-values
-
+print("Generate volcano")
 ggsave("volcano.png", plot=volcano_plot, device="png")
 
 
@@ -246,39 +248,35 @@ names(gene_matrix) <- results_sig_entrez$entrez
 # - - - - - - - - - - - - -
 # Enrich with KEGG database
 # - - - - - - - - - - - - -
+print("Generate KEGG barplot")
+
 kegg_enrich <- enrichKEGG(gene = names(gene_matrix),
                           organism = 'hsa',
                           pvalueCutoff = 0.05)
 
 # Get table of results
-head(as.data.frame(kegg_enrich))
+kegg_table <- head(as.data.frame(kegg_enrich), n=10) %>% arrange(desc(-log10(pvalue)))
 
 # KEGG plot
-png(file="kegg_barplot.png")
-barplot(kegg_enrich, 
-        drop = TRUE, 
-        showCategory = 10, 
-        title = "KEGG Enrichment Pathways",
-        font.size = 8)
-dev.off()
+kegg_bar <- ggplot(kegg_table, aes(x=reorder(Description, -log10(pvalue)), y=-log10(pvalue))) + geom_bar(stat='identity', fill="#6B2525") + geom_col(width=0.7) + labs(title="KEGG Enrichment Pathways", x="Termos de KEGG") + coord_flip()
+
+ggsave("kegg_bar.png", plot=kegg_bar, device="png")
 
 
 # - - - - - - - - - - - - -
 # Enrich with GO
 # - - - - - - - - - - - - -
+print("Generate GO barplot")
+
 go_enrich <- enrichGO(gene = names(gene_matrix), 
                       OrgDb = "org.Hs.eg.db",
                       ont = "BP",
                       pvalueCutoff = 0.05)
 
 # Get table of results
-head(as.data.frame(go_enrich))
+go_table <- head(as.data.frame(go_enrich), n=10) %>% arrange(desc(-log10(pvalue)))
 
 # Plot results
-png(file="GO_barplot.png")
-barplot(go_enrich, 
-        drop = TRUE, 
-        showCategory = 10, 
-        title = "GO Biological Pathways",
-        font.size = 8)
-dev.off()
+go_bar <- ggplot(go_table, aes(x=reorder(Description, -log10(pvalue)), y=-log10(pvalue))) + geom_bar(stat='identity', fill="#157296") + geom_col(width=0.7) + labs(title="GO Biological Pathways", x="Termos de GO") + coord_flip()
+
+ggsave("go_bar.png", plot=go_bar, device="png")
