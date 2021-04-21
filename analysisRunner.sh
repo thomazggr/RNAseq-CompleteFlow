@@ -2,12 +2,12 @@
 usage()
 {
 cat << EOF
-    Command line usage: bash analysisRunner.sh --D --O hsa --T n_threads --S sample_1 sample_2 sample_3 sample_n
+    Command line usage: bash analysisRunner.sh -D -O hsa -T n_threads -S sample_1,sample_2,sample_3,sample_n
 
     -D |   --download   (Optional) If called, indexes and annotation files will be downloaded
     -O |   --organism   (Required) hsa for homo sapies or mmu for mus musculus samples
     -T |   --threads    (Optional) If no number of threads to be used is passed, 4 is the default number
-    -S |   --samples    (Required) Name of .fastq files to be used in the analysis. Each file has to be separated by a single space
+    -S |   --samples    (Required) Name of .fastq files to be used in the analysis. Each file has to be separated by comma ,
 
 EOF
 }
@@ -16,10 +16,10 @@ EOF
 THREADS=4
 DOWNLOAD="N"
 
+# While loop to parse all arguments
 while [ "$1" != "" ]; do
     case $1 in
         -D | --download)
-            shift
             DOWNLOAD="Y"
         ;;
         -O | --organism)
@@ -37,24 +37,27 @@ while [ "$1" != "" ]; do
         -h | --help) usage
             exit
         ;;
-        * ) usage
-            exit 1
+        * )
     esac
     shift
 done
 
+# Check if organism are empty (mandatory argument)
 if [ -z $ORG ]; then
     echo "Organism is required. Please, provide either hsa or mmu with the -O or --organism flag in the command line when running analysisRunner.sh"
     exit
 fi
 
+# Check if samples are empty (mandatory argument)
 if [ -z $SAMPLES ]; then
     echo "You need to pass your file name for the samples that will be used passing the -S or --samples flag when running analysisRunner.sh"
     exit
 fi
 
-if [ "$DOWNLOAD" -eq "Y" ]; then
-    if [ "$ORG" -eq "hsa" ]; then
+# Check if download argument has been passed, YES argument will download annotation and index for the organism selected (either hsa or mmu)
+# If download has not been passed it will use index and annotation files inside each folder
+if [ "$DOWNLOAD" = "Y" ]; then
+    if [ "$ORG" = "hsa" ]; then
         # Downloads human genome annotation to the exact folder
         echo "Downloading .gtf annotation file, please wait..."
         echo
@@ -65,28 +68,38 @@ if [ "$DOWNLOAD" -eq "Y" ]; then
         echo "Downloading indexed human genome from Hisat2, please wait..."
         echo
         wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/grch38_genome.tar.gz
-        #mv genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
+        cd grch38_genome/grch38/genome
+        # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
+        mv * ../../../
+        cd ../../../
+        rm -r grch38_genome
+        cd ../
         echo "Genome indexes has been downloaded!"
         echo
-    elif [ "$ORG" -eq "mmu" ]; then
+    elif [ "$ORG" = "mmu" ]; then
         # Downloads mus musculus genome annotation to the exact folder
         echo "Downloading .gtf annotation file, please wait..."
         echo
-        wget -P annotation/ 
+        wget -P annotation/ ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M26/gencode.vM26.annotation.gtf.gz
         echo "Finished downloading annotation!"
         echo
         # Downloads indexed MMU genome from Hisat2 AWS
         echo "Downloading indexed mus musculus genome from Hisat2, please wait..."
         echo
-        wget -P index/ 
-        #mv genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
+        wget -P index/ https://cloud.biohpc.swmed.edu/index.php/s/grcm38/download
+        cd grcm38/
+        # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
+        mv * ../
+        cd ../
+        rm -r grcm38
+        cd ../
         echo "Genome indexes has been downloaded!"
         echo
     else
         echo "The $ORG organism option does not exist right now. If this is a valid organism please make a formal request to be added in the workflow sending an email to thomaz@vivaldi.net"
     fi
 
-elif [ "$DOWNLOAD" -eq "N" ]; then
+elif [ "$DOWNLOAD" = "N" ]; then
     echo "No files will be download. Using annotation and index files that have been places in the correct folders."
     echo "Following with the analysis..."
     echo
@@ -94,22 +107,28 @@ else
     echo "Something unexpected happened with the download option. Please try it again!"
 fi
 
-# Set your samples here! Set the name before file format .fastq, e.g.: sample_1.fastq, so it will be SAMPLES = "sample_1"
-# If you have multiple samples, set with only 1 (one) space between names, as the next example: SAMPLES = "sample_1 sample_2 sample_3"
-SAMPLES="sample1 sample2 sample3"
+# All samples that has passed as argument will be used here to be passed to the for loop
+SAMPLESREP=`echo $SAMPLES | tr ',' ' '`
 
-for SAMPLE in $SAMPLES; do
+# Tests that can be run
+#echo $SAMPLESREP
+#echo $THREADS
+#echo $DOWNLOAD
+#echo $ORG
+#exit
+
+for SAMPLE in $SAMPLESREP; do
     # Starting fastqc
     echo "Starting FastQC for quality control, please wait..."
     echo
-    fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}.fastq
+    fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}.fastq.gz
     echo "FastQC has ended, you can check quality control at results/1_initial_qc/"
     echo
 
     # Starts trimmage using TrimGalore!
     echo "Starting file trimmage using TrimGalore!, please wait..."
     echo
-    trim_galore --quality 20 --fastqc --gzip --length 25 --output_dir results/2_trimmed_output/ input/${SAMPLE}.fastq
+    trim_galore --quality 20 --fastqc --length 25 --output_dir results/2_trimmed_output/ input/${SAMPLE}.fastq.gz
     echo "Trimmage has ended!"
     echo
 
@@ -118,7 +137,7 @@ for SAMPLE in $SAMPLES; do
     echo
     echo "And also, please wait..."
     echo
-    hisat2 -p 8 -x index/grch38_genome/grch38/genome -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam
+    hisat2 -p $THREADS -x index -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam
     echo "Alignment has ended! HOORAY!"
     echo
 done
