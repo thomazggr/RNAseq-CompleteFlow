@@ -68,10 +68,10 @@ if [ "$DOWNLOAD" = "Y" ]; then
         echo "Downloading indexed human genome from Hisat2, please wait..."
         echo
         wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/grch38_genome.tar.gz
-        cd grch38_genome/grch38/genome
+        cd grch38_genome/grch38/
         # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
-        mv * ../../../
-        cd ../../../
+        mv * ../../
+        cd ../../
         rm -r grch38_genome
         cd ../
         echo "Genome indexes has been downloaded!"
@@ -87,10 +87,10 @@ if [ "$DOWNLOAD" = "Y" ]; then
         echo "Downloading indexed mus musculus genome from Hisat2, please wait..."
         echo
         wget -P index/ https://cloud.biohpc.swmed.edu/index.php/s/grcm38/download
-        cd grcm38/
+        cd grcm38/grcm38/
         # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
-        mv * ../
-        cd ../
+        mv * ../../
+        cd ../../
         rm -r grcm38
         cd ../
         echo "Genome indexes has been downloaded!"
@@ -137,7 +137,7 @@ for SAMPLE in $SAMPLESREP; do
     echo
     echo "And also, please wait..."
     echo
-    hisat2 -p $THREADS -x index -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam
+    hisat2 -p $THREADS -x index/genome -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam
     echo "Alignment has ended! HOORAY!"
     echo
 done
