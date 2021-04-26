@@ -1,6 +1,17 @@
-SampleID	Group	Replicate
-c1_r1	case1	Rep1
-c1_r2	case1	Rep2
-c2_r1	case2	Rep1
-c2_r2	case2	Rep2
-
+SampleID,Group,Replicate
+1_CT_R1,CT,R1
+1_CT_R2,CT,R2
+2_CT_R1,CT,R1
+2_CT_R2,CT,R2
+6_CT_R1,CT,R1
+6_CT_R2,CT,R2
+16_HF_T1_R1,T1,R1
+16_HF_T1_R2,T1,R2
+20_HF_T1_R1,T1,R1
+20_HF_T1_R2,T1,R2
+18_HF_T2_R1,T2,R1
+18_HF_T2_R2,T2,R2
+22_HF_T2_R1,T2,R1
+22_HF_T2_R2,T2,R2
+23_HF_T2_R1,T2,R1
+23_HF_T2_R2,T2,R2
