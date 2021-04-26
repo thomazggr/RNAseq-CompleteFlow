@@ -84,26 +84,26 @@ for SAMPLE in $SAMPLESREP; do
 done
 
 # Give the welcome package
-STARTDT="$(date +'%Y/%m/%d-%H:%M')"
-hello | tee -a "loggersAT${STARTDT}.log"
-echo -e "Hello! Welcome to the RNA-seq workflow" | tee -a "loggersAT${STARTDT}.log"
+STARTDT="$(date +'%Y-%m-%d_%H-%M')"
+hello |& tee -a "loggersAT${STARTDT}.log"
+echo -e "Hello! Welcome to the RNA-seq workflow" |& tee -a "loggersAT${STARTDT}.log"
 # Giving parameters away
-echo -e "Start datetime: $STARTDT" | tee -a "loggersAT${STARTDT}.log"
-echo -e "Threads used in HISAT2: $THREADS" | tee -a "loggersAT${STARTDT}.log"
-echo -e "Chosen organism: $ORG" | tee -a "loggersAT${STARTDT}.log"
-echo -e "Will download indexes and annotation files? $DOWNLOAD" | tee -a "loggersAT${STARTDT}.log"
-echo -e "Samples used: $SAMPLESREP" | tee -a "loggersAT${STARTDT}.log"
+echo -e "Start datetime: $STARTDT" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "Threads used in HISAT2: $THREADS" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "Chosen organism: $ORG" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "Will download indexes and annotation files? $DOWNLOAD" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "Samples used: $SAMPLESREP" |& tee -a "loggersAT${STARTDT}.log"
 
 # Check if download argument has been passed, YES argument will download annotation and index for the organism selected (either hsa or mmu)
 # If download has not been passed it will use index and annotation files inside each folder
 if [ "$DOWNLOAD" = "Y" ]; then
     if [ "$ORG" = "hsa" ]; then
         # Downloads human genome annotation to the exact folder
-        echo -e "Downloading .gtf annotation file, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "Downloading .gtf annotation file, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
         wget -P annotation/ ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_37/gencode.v37.annotation.gtf.gz
-        echo -e "Finished downloading annotation! \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "Finished downloading annotation! \n" |& tee -a "loggersAT${STARTDT}.log"
         # Downloads indexed genome from Hisat2 AWS
-        echo -e "Downloading indexed human genome from Hisat2, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "Downloading indexed human genome from Hisat2, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
         wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/grch38_genome.tar.gz
         cd grch38_genome/grch38/
         # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
@@ -111,48 +111,49 @@ if [ "$DOWNLOAD" = "Y" ]; then
         cd ../../
         rm -r grch38_genome
         cd ../
-        echo -e "Genome indexes has been downloaded! \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "Genome indexes has been downloaded! \n" |& tee -a "loggersAT${STARTDT}.log"
     elif [ "$ORG" = "mmu" ]; then
         # Downloads mus musculus genome annotation to the exact folder
-        echo -e "Downloading .gtf annotation file, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "Downloading .gtf annotation file, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
         wget -P annotation/ ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M26/gencode.vM26.annotation.gtf.gz
-        echo -e "Finished downloading annotation! \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "Finished downloading annotation! \n" |& tee -a "loggersAT${STARTDT}.log"
         # Downloads indexed MMU genome from Hisat2 AWS
-        echo -e "Downloading indexed mus musculus genome from Hisat2, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
-        wget -P index/ https://cloud.biohpc.swmed.edu/index.php/s/grcm38/download
-        cd grcm38/grcm38/
+        echo -e "Downloading indexed mus musculus genome from Hisat2, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+        wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/mm10_genome.tar.gz
+        tar -xzf index/mm10_genome.tar.gz
+        cd index/mm10
         # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
-        mv * ../../
-        cd ../../
-        rm -r grcm38
-        cd ../
-        echo -e "Genome indexes has been downloaded! \n" | tee -a "loggersAT${STARTDT}.log"
+        mv * ../
+        cd ..
+        rm -r mm10/ mm10_genome.tar.gz
+        cd ..
+        echo -e "Genome indexes has been downloaded! \n" |& tee -a "loggersAT${STARTDT}.log"
     else
-        echo -e "The $ORG organism option does not exist right now. If this is a valid organism please make a formal request to be added in the workflow sending an email to thomaz@vivaldi.net \n" | tee -a "loggersAT${STARTDT}.log"
+        echo -e "The $ORG organism option does not exist right now. If this is a valid organism please make a formal request to be added in the workflow sending an email to thomaz@vivaldi.net \n" |& tee -a "loggersAT${STARTDT}.log"
     fi
 
 elif [ "$DOWNLOAD" = "N" ]; then
-    echo -e "No files will be download. Using annotation and index files that have been places in the correct folders. \nFollowing with the analysis..." | tee -a "loggersAT${STARTDT}.log"
+    echo -e "No files will be download. Using annotation and index files that have been places in the correct folders. \nFollowing with the analysis..." |& tee -a "loggersAT${STARTDT}.log"
 else
-    echo -e "Something unexpected happened with the download option. Please try it again! \n" | tee -a "loggersAT${STARTDT}.log"
+    echo -e "Something unexpected happened with the download option. Please try it again! \n" |& tee -a "loggersAT${STARTDT}.log"
 fi
 
 for SAMPLE in $SAMPLESREP; do
-    echo -e "\n----------------------------------- FILE ${SAMPLE} -----------------------------------" | tee -a "loggersAT${STARTDT}.log"
+    echo -e "\n----------------------------------- FILE ${SAMPLE} -----------------------------------" |& tee -a "loggersAT${STARTDT}.log"
     # Starting fastqc
-    echo -e "Starting FastQC for quality control, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
-    fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}.fastq.gz | tee -a "loggersAT${STARTDT}.log"
-    echo -e "FastQC has ended, you can check quality control at results/1_initial_qc/ \n" | tee -a "loggersAT${STARTDT}.log"
+    echo -e "Starting FastQC for quality control, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+    fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
+    echo -e "FastQC has ended, you can check quality control at results/1_initial_qc/ \n" |& tee -a "loggersAT${STARTDT}.log"
 
     # Starts trimmage using TrimGalore!
-    echo -e "Starting file trimmage using TrimGalore!, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
-    trim_galore --quality 20 --fastqc --length 25 --output_dir results/2_trimmed_output/ input/${SAMPLE}.fastq.gz | tee -a "loggersAT${STARTDT}.log"
-    echo -e "Trimmage has ended! \n" | tee -a "loggersAT${STARTDT}.log"
+    echo -e "Starting file trimmage using TrimGalore!, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+    trim_galore --quality 20 --fastqc --length 25 --output_dir results/2_trimmed_output/ input/${SAMPLE}.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
+    echo -e "Trimmage has ended! \n" |& tee -a "loggersAT${STARTDT}.log"
 
     # Starts alignment using hisat2 for low memory comsumption ~8gb for human genome an medium sized fastq file (~1.5gb)
-    echo -e "Starting alignment using Hisat2, this can take a while, go grab a coffee! \nAnd also, please wait..." | tee -a "loggersAT${STARTDT}.log"
-    hisat2 -p $THREADS -x index/genome -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam | tee -a "loggersAT${STARTDT}.log"
-    echo -e "Alignment has ended! HOORAY! \n" | tee -a "loggersAT${STARTDT}.log"
+    echo -e "Starting alignment using Hisat2, this can take a while, go grab a coffee! \nAnd also, please wait..." |& tee -a "loggersAT${STARTDT}.log"
+    hisat2 -p $THREADS -x index/genome -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam |& tee -a "loggersAT${STARTDT}.log"
+    echo -e "Alignment has ended! HOORAY! \n" |& tee -a "loggersAT${STARTDT}.log"
 done
 
 # Go to dir where SAM files are
@@ -160,19 +161,21 @@ cd results/4_aligned_sequences
 
 # Store list of SAM files as a variable
 SAMLIST=$(ls -t ./*.sam | tr '\n' ' ')
-echo -e $SAMLIST | tee -a "loggersAT${STARTDT}.log"
+echo -e $SAMLIST |& tee -a "../../loggersAT${STARTDT}.log"
 
 # Final counts to be used in DE analysis
-echo -e "Starting featureCounts for final counts, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
-featureCounts -a ../../annotation/* -o ../../results/5_final_counts/final_counts.txt -g 'gene_name' -T 4 $SAMLIST | tee -a "loggersAT${STARTDT}.log"
-echo -e "featureCounts has ended, counts will be used to DE analysis! \n" | tee -a "loggersAT${STARTDT}.log"
+echo -e "Starting featureCounts for final counts, please wait... \n" |& tee -a "../../loggersAT${STARTDT}.log"
+featureCounts -a ../../annotation/* -o ../../results/5_final_counts/final_counts.txt -g 'gene_name' -T 4 $SAMLIST |& tee -a "../../loggersAT${STARTDT}.log"
+echo -e "featureCounts has ended, counts will be used to DE analysis! \n" |& tee -a "../../loggersAT${STARTDT}.log"
+# Move final counts file to the DE analysis folder
+mv final_counts.txt ../../DE_analysis/
 # Back to the main folder
 cd ../../
 
 # Run last analysis using MultiQC
-echo -e "MultiQC has started, please wait... \n" | tee -a "loggersAT${STARTDT}.log"
-multiqc results --outdir results/6_multiQC | tee -a "loggersAT${STARTDT}.log"
-echo -e "MultiQC has ended! \nAll your results are stored in the results folder!" | tee -a "loggersAT${STARTDT}.log"
+echo -e "MultiQC has started, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+multiqc results --outdir results/6_multiQC |& tee -a "loggersAT${STARTDT}.log"
+echo -e "MultiQC has ended! \nAll your results are stored in the results folder!" |& tee -a "loggersAT${STARTDT}.log"
 
-ENDDT="$(date +'%Y/%m/%d-%H:%M')"
-echo -e "Ending time: $ENDDT" | tee -a "loggersAT${STARTDT}.log"
+ENDDT="$(date +'%Y-%m-%d_%H-%M')"
+echo -e "Ending time: $ENDDT" |& tee -a "loggersAT${STARTDT}.log"
