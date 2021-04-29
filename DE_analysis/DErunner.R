@@ -4,42 +4,44 @@
 # Install BiocManager first
 # sudo apt install r-cran-xml r-cran-xml2 libxml2-dev libcurl4-openssl-dev libssl-dev 
 # install.packages(c("httr", "curl", "RCurl", "openssl", "XML"))
-# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","biomaRt","ReactomePA","ggsci","gage","dplyr","topGO","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","genefilter","GO.db","KEGG.db","RColorBrewer"))
-# Load required libraries
+# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","AnnotationDbi","ReactomePA","gage","ggsci","dplyr","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","KEGG.db","RColorBrewer"))
+
+# Load general libraries
 library(ggplot2)
-library(clusterProfiler)
-library(ReactomePA)
-library(DOSE)
-library(KEGG.db)
-library(org.Mm.eg.db)
-#library(org.Hs.eg.db)
-library(pheatmap)
-library(genefilter)
-library(RColorBrewer)
-library(GO.db)
-library(topGO)
 library(dplyr)
 library(gage)
 library(ggsci)
+
 # Differential expression analysis library
 library(DESeq2)
 
-# Gene annotation library
+# Gene annotation libraries
 library(AnnotationDbi)
 library(org.Mm.eg.db)
 library(org.Hs.eg.db)
 
-# Heatmap library
+# Heatmap libraries
 library(pheatmap) 
-library(RColorBrewer) 
+library(RColorBrewer)
 
+# Volcano libraries
+library(ggplot2)
+library(RColorBrewer)
+
+# Pathway analysis libraries
+library(clusterProfiler)
+library(ReactomePA)
+library(KEGG.db)
+library(DOSE)
+library(org.Mm.eg.db)
+library(org.Hs.eg.db)
 
 # - - - - - - - - - - - - - 
 # Import gene counts table
 # - - - - - - - - - - - - - 
 # - skip first row (general command info)
 # - make row names the gene identifiers
-countdata <- read.table("final_counts_m24.txt", header = TRUE, skip = 1, row.names = 1)
+countdata <- read.table("./DE_analysis/final_counts_m24.txt", header = TRUE, skip = 1, row.names = 1)
 
 # Remove .sam + '..' from column identifiers
 colnames(countdata) <- gsub(".sam", "", colnames(countdata), fixed = T)
@@ -49,14 +51,16 @@ colnames(countdata) <- gsub("X", "", colnames(countdata), fixed = T)
 countdata <- countdata[ ,c(-1:-5)]
 
 # Make sure ID's are correct
-# head(countdata)
+print(head(countdata))
+idcd <- readline(prompt="Count data ID are correct? [y/n] ")
+if(idcd == "y"){ } else if(idcd == "n"){ stop("Count data IDs are not correct. Finishing execution.") }
 
 # - - - - - - - - - - - - - 
 # Import metadata file
 # - - - - - - - - - - - - - 
 
 # Import and make row names the matching sampleID's from the countdata
-metadata <- read.delim("metadata.txt", sep=",",row.names = 1)
+metadata <- read.delim("./DE_analysis/metadata.txt", sep=",",row.names = 1)
 
 # Add sampleID's to the mapping file
 metadata$sampleid <- row.names(metadata)
@@ -65,7 +69,9 @@ metadata$sampleid <- row.names(metadata)
 metadata <- metadata[match(colnames(countdata), metadata$sampleid), ]
 
 # Make sure ID's are correct
-# head(metadata)
+print(head(metadata))
+idmd <- readline(prompt="Count data ID are correct? [y/n] ")
+if(idmd == "y"){ } else if(idmd == "n"){ stop("Metadata IDs are not correct. Finishing execution.") }
 
 
 # - - - - - - - - - - - - - 
@@ -75,27 +81,60 @@ metadata <- metadata[match(colnames(countdata), metadata$sampleid), ]
 # - colData : sample metadata in the dataframe with row names as sampleID's
 # - design : The design of the comparisons to use. 
 #            Use (~) before the name of the column variable to compare
-print("Run DESeq Matrix")
-ddsMat <- DESeqDataSetFromMatrix(countData = countdata,
-                                 colData = metadata,
-                                 design = ~Group)
+deMatrix <- function(countdata, metadata) {
+  print("Run DESeq Matrix")
+  ddsMat <- DESeqDataSetFromMatrix(countData = countdata,
+                                  colData = metadata,
+                                  design = ~Group)
 
-# Find differential expressed genes
-# Run DESEq2
-print("Run DESeq")
-ddsMat <- DESeq(ddsMat)
+  # Find differential expressed genes
+  # Run DESEq2
+  print("Run DESeq")
+  ddsMat <- DESeq(ddsMat)
+  return(ddsMat)
+}
 
-# Compute pairwise comparison for both 3 possibilities
-res.CT.Prop <- results(ddsMat, contrast = c("Group", "CT", "Prop"), pAdjustMethod = "fdr", alpha = 0.05)
-res.CT.Res <- results(ddsMat, contrast = c("Group", "CT", "Res"), pAdjustMethod = "fdr", alpha = 0.05)
-res.Prop.Res <- results(ddsMat, contrast = c("Group", "Prop", "Res"), pAdjustMethod = "fdr", alpha = 0.05)
+de2gp <- function(ddsMat) {
+  print("Get results from Walden's test for 2 groups")
+  results <- results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05)
+  return(results)
+}
 
-# Get results from testing with Likelihood Ratio Test for 3 groups
-ddsLRT <- DESeq(ddsMat, test="LRT", reduced = ~1)
-resLRT <- results(ddsLRT)
+de3gpPWC_LRT <- function(ddsMat, groups){
+  print("Get results from pairwise comparison for 3 groups")
 
-# Get results from testing with FDR adjust pvalues
-results <- results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05)
+  names <- c(paste0(groups[1],"vs",groups[2])
+            , paste0(groups[1],"vs",groups[3])
+            , paste0(groups[2],"vs",groups[3])
+            , "resLRT")
+
+  assign(names[1], results(ddsMat, contrast = c("Group", groups[1], groups[2]), pAdjustMethod = "fdr", alpha = 0.05))
+  assign(names[2], results(ddsMat, contrast = c("Group", groups[1], groups[3]), pAdjustMethod = "fdr", alpha = 0.05))
+  assign(names[3], results(ddsMat, contrast = c("Group", groups[2], groups[3]), pAdjustMethod = "fdr", alpha = 0.05))
+  
+  print("Get results from likelihood ratio test for 3 groups")
+
+  ddsLRT <- DESeq(ddsMat, test="LRT", reduced= ~1)
+  resLRT <- results(ddsLRT)
+
+  results <- lapply(names, get)
+
+  names(results) <- names
+
+  return(results)
+}
+
+# # Compute pairwise comparison for both 3 possibilities
+# res.CT.Prop <- results(ddsMat, contrast = c("Group", "CT", "Prop"), pAdjustMethod = "fdr", alpha = 0.05)
+# res.CT.Res <- results(ddsMat, contrast = c("Group", "CT", "Res"), pAdjustMethod = "fdr", alpha = 0.05)
+# res.Prop.Res <- results(ddsMat, contrast = c("Group", "Prop", "Res"), pAdjustMethod = "fdr", alpha = 0.05)
+
+# # Get results from testing with Likelihood Ratio Test for 3 groups
+# ddsLRT <- DESeq(ddsMat, test="LRT", reduced = ~1)
+# resLRT <- results(ddsLRT)
+
+# # Get results from testing with FDR adjust pvalues
+# results <- results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05)
 
 # Generate summary of testing. 
 # summary(results)
@@ -111,124 +150,135 @@ geneAnnotation <- function(results, organism){
   if (organism == "mmu") { db <- org.Mm.eg.db } else if(organism == "hsa") { db <- org.Hs.eg.db }
   
   for (idx in 1:length(results)){
-    results[idx]$description <- mapIds(x = db,
-                              keys = row.names(results[idx]),
+    results[[idx]]$description <- mapIds(x = db,
+                              keys = row.names(results[[idx]]),
                               column = "GENENAME",
                               keytype = "SYMBOL",
                               multiVals = "first")
 
-    results[idx]$symbol <- row.names(results[idx])
+    results[[idx]]$symbol <- row.names(results[[idx]])
 
-    results$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(results),
+    results[[idx]]$entrez <- mapIds(x = org.Mm.eg.db,
+                         keys = row.names(results[[idx]]),
                          column = "ENTREZID",
                          keytype = "SYMBOL",
                          multiVals = "first")
 
-    results_sig <- subset(results, pvalue < 0.01)
+    signame <- paste0(names(results)[idx], "_sig")
 
+    assign(paste0(signame), subset(results[[idx]], pvalue < 0.01))
+    eval(as.character(signame)) <- eval(as.character(signame))[!grepl("Gm[0-9]{3}"
+                                                              , eval(as.character(signame))$symbol),]
+    eval(as.character(signame)) <- eval(as.character(signame))[!grepl("[0-9]Rik"
+                                                              , eval(as.character(signame))$symbol),]
     
+    names[idx] <- signame
   }
+  results_sig <- lapply(names, get)
+  names(results_sig) <- names
+  return(results_sig)
 }
-# Add gene full name
-results$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(results),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
 
-res.CT.Prop$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(res.CT.Prop),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
+stop()
+# # Add gene full name
+# results$description <- mapIds(x = org.Mm.eg.db,
+#                               keys = row.names(results),
+#                               column = "GENENAME",
+#                               keytype = "SYMBOL",
+#                               multiVals = "first")
 
-res.CT.Res$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(res.CT.Res),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
+# res.CT.Prop$description <- mapIds(x = org.Mm.eg.db,
+#                               keys = row.names(res.CT.Prop),
+#                               column = "GENENAME",
+#                               keytype = "SYMBOL",
+#                               multiVals = "first")
 
-res.Prop.Res$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(res.Prop.Res),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
+# res.CT.Res$description <- mapIds(x = org.Mm.eg.db,
+#                               keys = row.names(res.CT.Res),
+#                               column = "GENENAME",
+#                               keytype = "SYMBOL",
+#                               multiVals = "first")
 
-resLRT$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(resLRT),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
+# res.Prop.Res$description <- mapIds(x = org.Mm.eg.db,
+#                               keys = row.names(res.Prop.Res),
+#                               column = "GENENAME",
+#                               keytype = "SYMBOL",
+#                               multiVals = "first")
 
-# Add gene symbol
-results$symbol <- row.names(results)
+# resLRT$description <- mapIds(x = org.Mm.eg.db,
+#                               keys = row.names(resLRT),
+#                               column = "GENENAME",
+#                               keytype = "SYMBOL",
+#                               multiVals = "first")
 
-res.CT.Prop$symbol <- row.names(res.CT.Prop)
+# # Add gene symbol
+# results$symbol <- row.names(results)
 
-res.CT.Res$symbol <- row.names(res.CT.Res)
+# res.CT.Prop$symbol <- row.names(res.CT.Prop)
 
-res.Prop.Res$symbol <- row.names(res.Prop.Res)
+# res.CT.Res$symbol <- row.names(res.CT.Res)
 
-resLRT$symbol <- row.names(resLRT)
+# res.Prop.Res$symbol <- row.names(res.Prop.Res)
 
-# Add ENTREZ ID
-results$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(results),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# resLRT$symbol <- row.names(resLRT)
 
-res.CT.Prop$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(res.CT.Prop),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# # Add ENTREZ ID
+# results$entrez <- mapIds(x = org.Mm.eg.db,
+#                          keys = row.names(results),
+#                          column = "ENTREZID",
+#                          keytype = "SYMBOL",
+#                          multiVals = "first")
 
-res.CT.Res$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(res.CT.Res),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# res.CT.Prop$entrez <- mapIds(x = org.Mm.eg.db,
+#                          keys = row.names(res.CT.Prop),
+#                          column = "ENTREZID",
+#                          keytype = "SYMBOL",
+#                          multiVals = "first")
 
-res.Prop.Res$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(res.Prop.Res),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# res.CT.Res$entrez <- mapIds(x = org.Mm.eg.db,
+#                          keys = row.names(res.CT.Res),
+#                          column = "ENTREZID",
+#                          keytype = "SYMBOL",
+#                          multiVals = "first")
 
-resLRT$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(resLRT),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# res.Prop.Res$entrez <- mapIds(x = org.Mm.eg.db,
+#                          keys = row.names(res.Prop.Res),
+#                          column = "ENTREZID",
+#                          keytype = "SYMBOL",
+#                          multiVals = "first")
 
-# Subset for only significant genes (q < 0.05)
-results_sig <- subset(results, pvalue < 0.01)
+# resLRT$entrez <- mapIds(x = org.Mm.eg.db,
+#                          keys = row.names(resLRT),
+#                          column = "ENTREZID",
+#                          keytype = "SYMBOL",
+#                          multiVals = "first")
 
-res.CT.Prop_sig <- subset(res.CT.Prop, pvalue < 0.01)
+# # Subset for only significant genes (q < 0.05)
+# results_sig <- subset(results, pvalue < 0.01)
 
-res.CT.Res_sig <- subset(res.CT.Res, pvalue < 0.01)
+# res.CT.Prop_sig <- subset(res.CT.Prop, pvalue < 0.01)
 
-res.Prop.Res_sig <- subset(res.Prop.Res, pvalue < 0.01)
+# res.CT.Res_sig <- subset(res.CT.Res, pvalue < 0.01)
 
-resLRT_sig <- subset(resLRT, pvalue < 0.01)
+# res.Prop.Res_sig <- subset(res.Prop.Res, pvalue < 0.01)
 
-# Extracting Rik and Gm genes that has been annotated but have no canonical name
-results_sig <- results_sig[!grepl("Gm[0-9]{3}", results_sig$symbol),]
-results_sig <- results_sig[!grepl("[0-9]Rik", results_sig$symbol),]
+# resLRT_sig <- subset(resLRT, pvalue < 0.01)
 
-res.CT.Prop_sig <- res.CT.Prop_sig[!grepl("Gm[0-9]{3}", res.CT.Prop_sig$symbol),]
-res.CT.Prop_sig <- res.CT.Prop_sig[!grepl("[0-9]Rik", res.CT.Prop_sig$symbol),]
+# # Extracting Rik and Gm genes that has been annotated but have no canonical name
+# results_sig <- results_sig[!grepl("Gm[0-9]{3}", results_sig$symbol),]
+# results_sig <- results_sig[!grepl("[0-9]Rik", results_sig$symbol),]
 
-res.CT.Res_sig <- res.CT.Res_sig[!grepl("Gm[0-9]{3}", res.CT.Res_sig$symbol),]
-res.CT.Res_sig <- res.CT.Res_sig[!grepl("[0-9]Rik", res.CT.Res_sig$symbol),]
+# res.CT.Prop_sig <- res.CT.Prop_sig[!grepl("Gm[0-9]{3}", res.CT.Prop_sig$symbol),]
+# res.CT.Prop_sig <- res.CT.Prop_sig[!grepl("[0-9]Rik", res.CT.Prop_sig$symbol),]
 
-res.Prop.Res_sig <- res.Prop.Res_sig[!grepl("Gm[0-9]{3}", res.Prop.Res_sig$symbol),]
-res.Prop.Res_sig <- res.Prop.Res_sig[!grepl("[0-9]Rik", res.Prop.Res_sig$symbol),]
+# res.CT.Res_sig <- res.CT.Res_sig[!grepl("Gm[0-9]{3}", res.CT.Res_sig$symbol),]
+# res.CT.Res_sig <- res.CT.Res_sig[!grepl("[0-9]Rik", res.CT.Res_sig$symbol),]
 
-resLRT_sig <- resLRT_sig[!grepl("Gm[0-9]{3}", resLRT_sig$symbol),]
-resLRT_sig <- resLRT_sig[!grepl("[0-9]Rik", resLRT_sig$symbol),]
+# res.Prop.Res_sig <- res.Prop.Res_sig[!grepl("Gm[0-9]{3}", res.Prop.Res_sig$symbol),]
+# res.Prop.Res_sig <- res.Prop.Res_sig[!grepl("[0-9]Rik", res.Prop.Res_sig$symbol),]
+
+# resLRT_sig <- resLRT_sig[!grepl("Gm[0-9]{3}", resLRT_sig$symbol),]
+# resLRT_sig <- resLRT_sig[!grepl("[0-9]Rik", resLRT_sig$symbol),]
 
 # - - - - - - - - - - - - - 
 # Not needed tables for now
@@ -342,9 +392,7 @@ pheatmap(mat = mat,
 # - - - - - - - - - - - - - 
 # Volcano plot
 # - - - - - - - - - - - - - 
-# Load libraries
-library(ggplot2)
-library(RColorBrewer)
+
 
 volcanos_data <- list(res.CT.Prop, res.CT.Res, res.Prop.Res)
 volcanos_names <- list("CTvsProp", "CTvsRes", "PropvsRes")
@@ -389,15 +437,6 @@ for (i in volcanos_data){
 # - - - - - - - - - - - - - - -
 # Pathway analysis of DE genes
 # - - - - - - - - - - - - - - -
-
-# Load required libraries
-library(clusterProfiler)
-library(ReactomePA)
-library(KEGG.db)
-library(DOSE)
-library(org.Mm.eg.db)
-#library(org.Hs.eg.db)
-
 # Remove any genes that do not have any entrez identifiers
 results_sig_entrez <- subset(resLRT_sig, is.na(entrez) == FALSE)
 
