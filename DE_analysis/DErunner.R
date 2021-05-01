@@ -1,33 +1,40 @@
-# Main script was made by:
-# @ Thomas W. Battaglia
-# tb1280@nyu.edu
-# Changes made by:
-# @ Thomaz G. Ramalheira
-# thomaz@vivaldi.net
+# Adapted script for DE analysis and data visualization
 
 # Install R base and R dev
 # Install BiocManager first
 # sudo apt install r-cran-xml r-cran-xml2 libxml2-dev libcurl4-openssl-dev libssl-dev 
 # install.packages(c("httr", "curl", "RCurl", "openssl", "XML"))
-# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","biomaRt","ReactomePA","ggsci","gage","dplyr","topGO","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","genefilter","GO.db","KEGG.db","RColorBrewer"))
-# Load required libraries
-library(DESeq2)
+# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","AnnotationDbi","ReactomePA","gage","ggsci","dplyr","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","KEGG.db","RColorBrewer"))
+
+# Load general libraries
 library(ggplot2)
-library(clusterProfiler)
-library(ReactomePA)
-library(DOSE)
-library(KEGG.db)
-library(org.Mm.eg.db)
-library(org.Hs.eg.db)
-library(pheatmap)
-library(genefilter)
-library(RColorBrewer)
-library(GO.db)
-library(topGO)
 library(dplyr)
 library(gage)
 library(ggsci)
 
+# Differential expression analysis library
+library(DESeq2)
+
+# Gene annotation libraries
+library(AnnotationDbi)
+library(org.Mm.eg.db)
+library(org.Hs.eg.db)
+
+# Heatmap libraries
+library(pheatmap) 
+library(RColorBrewer)
+
+# Volcano libraries
+library(ggplot2)
+library(RColorBrewer)
+
+# Pathway analysis libraries
+library(clusterProfiler)
+library(ReactomePA)
+library(KEGG.db)
+library(DOSE)
+library(org.Mm.eg.db)
+library(org.Hs.eg.db)
 
 # - - - - - - - - - - - - - 
 # Import gene counts table
@@ -35,34 +42,44 @@ library(ggsci)
 # - skip first row (general command info)
 # - make row names the gene identifiers
 countdata <- read.table("final_counts.txt", header = TRUE, skip = 1, row.names = 1)
-
-# Remove .bam + '..' from column identifiers
+# Remove .sam + '..' from column identifiers
 colnames(countdata) <- gsub(".sam", "", colnames(countdata), fixed = T)
 colnames(countdata) <- gsub("X", "", colnames(countdata), fixed = T)
-colnames(countdata) <- gsub("..", "", colnames(countdata), fixed = T)
-
 # Remove length/char columns
 countdata <- countdata[ ,c(-1:-5)]
-
 # Make sure ID's are correct
-# head(countdata)
+print(head(countdata))
+idcd <- as.character(readline(prompt="Count data ID are correct? [y/n] "))
+if(idcd == "y"){ } else if(idcd == "n"){ stop("Count data IDs are not correct. Finishing execution.") }
 
 # - - - - - - - - - - - - - 
 # Import metadata file
 # - - - - - - - - - - - - - 
-
 # Import and make row names the matching sampleID's from the countdata
 metadata <- read.delim("metadata.txt", sep=",",row.names = 1)
-
 # Add sampleID's to the mapping file
 metadata$sampleid <- row.names(metadata)
-
 # Reorder sampleID's to match featureCounts column order. 
 metadata <- metadata[match(colnames(countdata), metadata$sampleid), ]
 
 # Make sure ID's are correct
-# head(metadata)
+print(head(metadata))
+idmd <- as.character(readline(prompt="Count data ID are correct? [y/n] "))
+if(idmd == "y"){ } else if(idmd == "n"){ stop("Metadata IDs are not correct. Finishing execution.") }
 
+runner <- function(){
+  if(length(unique(metadata$Group)) > 2){
+    ddsMat <- deMatrix(countdata, metadata)
+    results <- de3gpPWC_LRT(ddsMat, unique(metadata$Group))
+    results_sig <- geneAnnotation(results, "mmu")
+    generateTables(results_sig)
+    vennTables(results_sig)
+    generateHeatmap(ddsMat, results_sig)
+    generateVolcanos(results)
+    pathwayAnalysis(results_sig, "mmu")
+    print("Everything has ended!")
+  }
+}
 
 # - - - - - - - - - - - - - 
 # Run Deseq2
@@ -71,337 +88,291 @@ metadata <- metadata[match(colnames(countdata), metadata$sampleid), ]
 # - colData : sample metadata in the dataframe with row names as sampleID's
 # - design : The design of the comparisons to use. 
 #            Use (~) before the name of the column variable to compare
-print("Run DESeq Matrix")
-ddsMat <- DESeqDataSetFromMatrix(countData = countdata,
-                                 colData = metadata,
-                                 design = ~Group)
-
-
-# Find differential expressed genes
-# Run DESEq2
-print("Run DESeq")
-ddsMat <- DESeq(ddsMat)
-
-# Compute pairwise comparison for both 3 possibilities
-res.CT.T1 <- results(ddsMat, contrast = c("Group", "CT", "T1"), pAdjustMethod = "fdr", alpha = 0.05)
-res.CT.T2 <- results(ddsMat, contrast = c("Group", "CT", "T2"), pAdjustMethod = "fdr", alpha = 0.05)
-res.T1.T2 <- results(ddsMat, contrast = c("Group", "T1", "T2"), pAdjustMethod = "fdr", alpha = 0.05)
-
-# Get results from testing with Likelihood Ratio Test for 3 groups
-ddsLRT <- DESeq(ddsMat, test="LRT", reduced = ~1)
-resLRT <- results(ddsLRT)
-
-# Get results from testing with FDR adjust pvalues
-results <- results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05)
-
-# Generate summary of testing. 
-# summary(results)
-
-# Check directionality of fold change
-# mcols(results, use.names = T)
-
+deMatrix <- function(countdata, metadata) {
+  print("Run DESeq Matrix")
+  ddsMat <- DESeqDataSetFromMatrix(countData = countdata,
+                                  colData = metadata,
+                                  design = ~Group)
+  print("|-----DONE-----|")
+  # Find differential expressed genes
+  # Run DESEq2
+  print("Run DESeq")
+  ddsMat <- DESeq(ddsMat)
+  print("|-----DONE-----|")
+  return(ddsMat)
+}
 
 # - - - - - - - - - - - - - 
-# Gene annotation
+# Results for 2 groups only
 # - - - - - - - - - - - - - 
-library(AnnotationDbi)
-library(org.Mm.eg.db)
-library(org.Hs.eg.db)
+# - ddsMat : Matrix from DESeq2 function
+de2gp <- function(ddsMat) {
+  print("Get results from Walden's test for 2 groups")
+  results <- results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05)
+  print("|-----DONE-----|")
+  return(list(results))
+}
 
-# Add gene full name
-results$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(results),
+# - - - - - - - - - - - - - 
+# Gather results for ~+3groups
+# - - - - - - - - - - - - - 
+# - ddsMat : Matrix from DESeq2 function
+# - groups : Vector with string as groups, e.g. c("CT", "G1", "G2") or pass unique(metadata$Group)
+de3gpPWC_LRT <- function(ddsMat, groups){
+  print("Get results from pairwise comparison for 3 groups")
+
+  names <- c(paste0(groups[1],"vs",groups[2])
+            , paste0(groups[1],"vs",groups[3])
+            , paste0(groups[2],"vs",groups[3])
+            , "resLRT")
+
+  results <- list()
+  
+  results[1] <- results(ddsMat, contrast = c("Group", groups[1], groups[2]), pAdjustMethod = "fdr", alpha = 0.05)
+  results[2] <- results(ddsMat, contrast = c("Group", groups[1], groups[3]), pAdjustMethod = "fdr", alpha = 0.05)
+  results[3] <- results(ddsMat, contrast = c("Group", groups[2], groups[3]), pAdjustMethod = "fdr", alpha = 0.05)
+  print("|-----DONE-----|")
+  
+  print("Compute LRT for 3+ groups and save results")
+  ddsLRT <- DESeq(ddsMat, test="LRT", reduced= ~1)
+  results[4] <- results(ddsLRT)
+  names(results) <- names
+  print("|-----DONE-----|")
+  return(results)
+}
+
+# - - - - - - - - - - - - - 
+# Gene annotation and retrieves significant genes
+# - - - - - - - - - - - - - 
+# - results : Results gathered from 2 groups only or +3 groups functions
+# - organism : Passing organism to be used for annotation. "hsa" for homo sapiens or "mmu" mus musculus
+geneAnnotation <- function(results, organism){
+  # Check the organism passed to select a DB
+  if (organism == "mmu") { db <- org.Mm.eg.db } else if(organism == "hsa") { db <- org.Hs.eg.db }
+  
+  # Start loop in every result passed
+  print("Get gene description, symbol and ENTREZID for every significant result. Also filter Gm and Rik genes.")
+  for (idx in 1:length(results)){
+    results[[idx]] <- subset(results[[idx]], pvalue < 0.01)
+    
+    results[[idx]]$description <- mapIds(x = db,
+                              keys = row.names(results[[idx]]),
                               column = "GENENAME",
                               keytype = "SYMBOL",
                               multiVals = "first")
 
-res.CT.T1$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(res.CT.T1),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
+    results[[idx]]$symbol <- row.names(results[[idx]])
 
-res.CT.T2$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(res.CT.T2),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
-
-res.T1.T2$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(res.T1.T2),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
-
-resLRT$description <- mapIds(x = org.Mm.eg.db,
-                              keys = row.names(resLRT),
-                              column = "GENENAME",
-                              keytype = "SYMBOL",
-                              multiVals = "first")
-
-# Add gene symbol
-results$symbol <- row.names(results)
-
-res.CT.T1$symbol <- row.names(res.CT.T1)
-
-res.CT.T2$symbol <- row.names(res.CT.T2)
-
-res.T1.T2$symbol <- row.names(res.T1.T2)
-
-resLRT$symbol <- row.names(resLRT)
-
-# Add ENTREZ ID
-results$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(results),
+    results[[idx]]$entrez <- mapIds(x = org.Mm.eg.db,
+                         keys = row.names(results[[idx]]),
                          column = "ENTREZID",
                          keytype = "SYMBOL",
                          multiVals = "first")
+    
+    results[[idx]] <- results[[idx]][!grepl("Gm[0-9]{3}", results[[idx]]$symbol),]
+    results[[idx]] <- results[[idx]][!grepl("[0-9]Rik", results[[idx]]$symbol),]
+  }
+  for(i in 1:length(names(results))){ names(results)[i] <- paste0(names(results)[i], "_sig") }
+  print("|-----DONE-----|")
+  return(results)
+}
 
-res.CT.T1$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(res.CT.T1),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# - - - - - - - - - - - - - 
+# Generate table(s) from significant genes
+# - - - - - - - - - - - - - 
+# - res_sig : Gathered results from significant genes
+generateTables <- function(res_sig){
+  print("Generate annotated significant genes")
+  for (idx in 1:length(res_sig)){
+    write.table(x = as.data.frame(res_sig[[idx]]), 
+                file = paste0(names(res_sig)[idx],"_annotated.txt"), 
+                sep = '\t', 
+                quote = F,
+                col.names = NA)
+  }
+  print("|-----DONE-----|")
+}
 
-res.CT.T2$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(res.CT.T2),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
+# - - - - - - - - - - - - - 
+# Generate table(s) with gene name for external venn diagram
+# - - - - - - - - - - - - - 
+# - res_sig : Gathered results from significant genes
+vennTables <- function(res_sig){
+  print("Writing gene names table for easy copy-paste")
+  for (idx in 1:length(res_sig)){
+    write.table(row.names(res_sig[[idx]]), paste0("Gene_names_",names(res_sig)[idx],".txt"), sep="\n",row.names = F, quote = F)
+    
+  }
+  print("|-----DONE-----|")
+}
 
-res.T1.T2$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(res.T1.T2),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
-
-resLRT$entrez <- mapIds(x = org.Mm.eg.db,
-                         keys = row.names(resLRT),
-                         column = "ENTREZID",
-                         keytype = "SYMBOL",
-                         multiVals = "first")
-
-# Subset for only significant genes (q < 0.05)
-results_sig <- subset(results, pvalue < 0.01)
-
-res.CT.T1_sig <- subset(res.CT.T1, pvalue < 0.01)
-
-res.CT.T2_sig <- subset(res.CT.T2, pvalue < 0.01)
-
-res.T1.T2_sig <- subset(res.T1.T2, pvalue < 0.01)
-
-resLRT_sig <- subset(resLRT, pvalue < 0.01)
-
-# Extracting Rik and Gm genes that has been annotated but have no canonical name
-results_sig <- results_sig[!grepl("Gm[0-9]{3}", results_sig$symbol),]
-results_sig <- results_sig[!grepl("[0-9]Rik", results_sig$symbol),]
-
-res.CT.T1_sig <- res.CT.T1_sig[!grepl("Gm[0-9]{3}", res.CT.T1_sig$symbol),]
-res.CT.T1_sig <- res.CT.T1_sig[!grepl("[0-9]Rik", res.CT.T1_sig$symbol),]
-
-res.CT.T2_sig <- res.CT.T2_sig[!grepl("Gm[0-9]{3}", res.CT.T2_sig$symbol),]
-res.CT.T2_sig <- res.CT.T2_sig[!grepl("[0-9]Rik", res.CT.T2_sig$symbol),]
-
-res.T1.T2_sig <- res.T1.T2_sig[!grepl("Gm[0-9]{3}", res.T1.T2_sig$symbol),]
-res.T1.T2_sig <- res.T1.T2_sig[!grepl("[0-9]Rik", res.T1.T2_sig$symbol),]
-
-resLRT_sig <- resLRT_sig[!grepl("Gm[0-9]{3}", resLRT_sig$symbol),]
-resLRT_sig <- resLRT_sig[!grepl("[0-9]Rik", resLRT_sig$symbol),]
-
-# head(results_sig)
-# print("Generate normalized counts")
-# Write normalized gene counts to a .txt file
-# write.table(x = as.data.frame(counts(ddsMat), normalized = T), 
-#             file = 'normalized_counts.txt', 
-#             sep = '\t', 
-#             quote = F,
-#             col.names = NA)
-# print("Generate normalized counts sign")
-# Write significant normalized gene counts to a .txt file
-# write.table(x = counts(ddsMat[row.names(results_sig)], normalized = T), 
-#             file = 'normalized_counts_significant.txt', 
-#             sep = '\t', 
-#             quote = F, 
-#             col.names = NA)
-# print("Generate gene annotated")
-# Write the annotated results table to a .txt file
-# write.table(x = as.data.frame(results), 
-#             file = "results_gene_annotated.txt", 
-#             sep = '\t', 
-#             quote = F,
-#             col.names = NA)
-print("Generate gene annotated sign")
-# Write significant annotated results table to a .txt file
-write.table(x = as.data.frame(results_sig), 
-            file = "DESeq3G_gene_annotated_significant.txt", 
-            sep = '\t', 
-            quote = F,
-            col.names = NA)
-
-write.table(x = as.data.frame(res.CT.T1_sig), 
-            file = "CTvT1_gene_annotated_significant.txt", 
-            sep = '\t', 
-            quote = F,
-            col.names = NA)
-
-write.table(x = as.data.frame(res.CT.T2_sig), 
-            file = "CTvT2_gene_annotated_significant.txt", 
-            sep = '\t', 
-            quote = F,
-            col.names = NA)
-
-write.table(x = as.data.frame(res.T1.T2_sig), 
-            file = "T1vT2_gene_annotated_significant.txt", 
-            sep = '\t', 
-            quote = F,
-            col.names = NA)
-
-write.table(x = as.data.frame(resLRT_sig), 
-            file = "resLRT3G_gene_annotated_significant.txt", 
-            sep = '\t', 
-            quote = F,
-            col.names = NA)
-
-# - - - - - - - - - - - - -
-# Venn Diagram
-# - - - - - - - - - - - - -
-# Write tables used for Venn diagram
-write.table(row.names(res.T1.T2_sig), "T1vsT2_genes_VENN.txt", sep="\n",row.names = F, quote = F)
-write.table(row.names(res.CT.T2_sig), "CTvsT2_gene_VENN.txt", sep="\n",row.names = F, quote = F)
-write.table(row.names(res.CT.T1_sig), "CTvsT1_gene_VENN.txt", sep="\n",row.names = F, quote = F)
 
 # - - - - - - - - - - - - - 
 # Heatmap plot
 # - - - - - - - - - - - - - 
-# Load libraries
-library(pheatmap) 
-library(RColorBrewer) 
-
-# Convert all samples to rlog
-ddsMat_rlog <- rlog(ddsMat, blind = FALSE)
-
-# Gather 30 significant genes and make matrix
-mat <- assay(ddsMat_rlog[row.names(results_sig)])[1:30, ]
-
-# Choose which column variables you want to annotate the columns by.
-annotation_col = data.frame(
-  Group = factor(colData(ddsMat_rlog)$Group),
-  Replicate = factor(colData(ddsMat_rlog)$Replicate),
-  row.names = colData(ddsMat_rlog)$sampleid
-)
-
-# Specify colors you want to annotate the columns by.
-ann_colors = list(
-  Group = c("CT" = "blue", "T1" = "orange", "T2" = "black"),
-  Replicate = c(R1 = "red", R2 = "green")
-)
-print("Generate heatmap")
-# Make Heatmap with pheatmap function.
-# See more in documentation for customization
-pheatmap(mat = mat, 
-         color = colorRampPalette(brewer.pal(9, "YlOrBr"))(255), 
-         scale = "row", 
-         annotation_col = annotation_col, 
-         annotation_colors = ann_colors, 
-         show_colnames = F,
-         filename="heatmap.png",
-         silent=TRUE)
-
+# - ddsMat : Matrix generated in the beginning
+# - res_sig : Gathered results from significant genes
+generateHeatmap <- function(ddsMat, res_sig){
+  if(length(res_sig) > 2){
+    results_sig <- res_sig[[length(res_sig)]]
+    gps <- unique(metadata$Group)
+    # Specify colors you want to annotate the columns by.
+    
+  }  else if(length(res_sig) == 1) {
+      results_sig <- res_sig
+      gps <- unique(metadata$Group)
+      # Specify colors you want to annotate the columns by.
+      }
+  
+  # Convert all samples to rlog
+  ddsMat_rlog <- rlog(ddsMat, blind = FALSE)
+  
+  # Gather 30 significant genes and make matrix
+  mat <- assay(ddsMat_rlog[row.names(results_sig)])[1:30, ]
+  
+  # Choose which column variables you want to annotate the columns by.
+  annotation_col = data.frame(
+    Group = factor(colData(ddsMat_rlog)$Group),
+    Replicate = factor(colData(ddsMat_rlog)$Replicate),
+    row.names = colData(ddsMat_rlog)$sampleid
+  )
+  ann_colors = list(
+      Group = c("CT" = "blue", "Prop" = "orange", "Res" = "black"),
+      Replicate = c(R1 = "red", R2 = "green")
+    )
+  nms <- paste(gps, collapse = "-")
+  print("Generate heatmap")
+  # Make Heatmap with pheatmap function.
+  # See more in documentation for customization
+  pheatmap(mat = mat, 
+           color = colorRampPalette(brewer.pal(9, "YlOrBr"))(255), 
+           scale = "row", 
+           annotation_col = annotation_col, 
+           annotation_colors = ann_colors, 
+           show_colnames = F,
+           filename=paste0("heatmap_",nms,".png"),
+           silent=TRUE)
+  print("|-----DONE-----|")
+}
 
 # - - - - - - - - - - - - - 
 # Volcano plot
 # - - - - - - - - - - - - - 
-# Load libraries
-library(ggplot2)
-library(RColorBrewer)
+# - results : Results gathered from 2 groups only or +3 groups functions
+generateVolcanos <- function(results){
+  if(length(results) > 2){ res <- results[-4] } else{}
+  print("Starting generating volcano plot(s)")
+  for (idx in 1:length(res)){
+    # Gather Log-fold change and FDR-corrected pvalues from deseq2 results
+    data <- data.frame(pval = -log10(res[[idx]]$padj), 
+                      lfc = res[[idx]]$log2FoldChange, 
+                      row.names = row.names(res[[idx]]))
+  
+    # Remove any rows that have NA as an entry
+    data <- na.omit(data)
+  
+    # Color the points which are up or down
+    ## If fold-change > 0 and pvalue > 1.3 (Increased significant)
+    ## If fold-change < 0 and pvalue > 1.3 (Decreased significant)
+    data <- mutate(data, color = case_when(data$lfc > 1 & data$pval > 1.3 ~ "Increased",
+                                          data$lfc < -1 & data$pval > 1.3 ~ "Decreased",
+                                          data$pval < 1.3 ~ "nonsignificant"))
+    # Make a basic ggplot2 object with x-y values
+    vol <- ggplot(data, aes(x = lfc, y = pval, color = color))
+  
+    # Add ggplot2 layers
+    volcano_plot <- vol +   
+      ggtitle(label = "Volcano Plot", subtitle = "Colored by fold-change direction") +
+      geom_point(size = 2.5, alpha = 0.8, na.rm = T) +
+      scale_color_manual(name = "Directionality",
+                        values = c(Increased = "#008B00", Decreased = "#CD4F39", nonsignificant = "darkgray")) +
+      theme_bw(base_size = 14) + # change overall theme
+      theme(legend.position = "right") + # change the legend
+      xlab(expression(log[2](paste0(names(res)[idx])))) + # Change X-Axis label
+      ylab(expression(-log[10]("adjusted p-value"))) + # Change Y-Axis label
+      geom_hline(yintercept = 1.3, colour = "darkgrey") + # Add p-adj value cutoff line
+      scale_y_continuous(trans = "log1p") # Scale yaxis due to large p-values
+    print(paste("Generate volcano for", names(res)[idx]))
+    ggsave(paste0("volcano",names(res)[idx],".png"), plot=volcano_plot, device="png")
+  }
+  print("|-----DONE-----|")
+}
 
-# Gather Log-fold change and FDR-corrected pvalues from deseq2 results
-data <- data.frame(pval = -log10(resLRT$padj), 
-                   lfc = resLRT$log2FoldChange, 
-                   row.names = row.names(resLRT))
-
-# Remove any rows that have NA as an entry
-data <- na.omit(data)
-
-# Color the points which are up or down
-## If fold-change > 0 and pvalue > 1.3 (Increased significant)
-## If fold-change < 0 and pvalue > 1.3 (Decreased significant)
-data <- mutate(data, color = case_when(data$lfc > 1 & data$pval > 1.3 ~ "Increased",
-                                       data$lfc < -1 & data$pval > 1.3 ~ "Decreased",
-                                       data$pval < 1.3 ~ "nonsignificant"))
-# Make a basic ggplot2 object with x-y values
-vol <- ggplot(data, aes(x = lfc, y = pval, color = color))
-
-# Add ggplot2 layers
-volcano_plot <- vol +   
-  ggtitle(label = "Volcano Plot", subtitle = "Colored by fold-change direction") +
-  geom_point(size = 2.5, alpha = 0.8, na.rm = T) +
-  scale_color_manual(name = "Directionality",
-                     values = c(Increased = "#008B00", Decreased = "#CD4F39", nonsignificant = "darkgray")) +
-  theme_bw(base_size = 14) + # change overall theme
-  theme(legend.position = "right") + # change the legend
-  xlab(expression(log[2]("case1" / "case2"))) + # Change X-Axis label
-  ylab(expression(-log[10]("adjusted p-value"))) + # Change Y-Axis label
-  geom_hline(yintercept = 1.3, colour = "darkgrey") + # Add p-adj value cutoff line
-  scale_y_continuous(trans = "log1p") # Scale yaxis due to large p-values
-print("Generate volcano")
-ggsave("volcano.png", plot=volcano_plot, device="png")
-
-
-# - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - 
 # Pathway analysis of DE genes
-# - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - 
+# - res_sig : Gathered results from significant genes
+# - organism : Passing organism to be used for annotation. "hsa" for homo sapiens or "mmu" mus musculus
+pathwayAnalysis <- function(results_sig, organism){
+  if(length(results_sig) > 2){
+    res_sig <- results_sig[["resLRT_sig"]]
+  }  else if(length(results_sig) == 1) {
+    res_sig <- results_sig
+  }
+  print("Preprocessing LRT results data")
+  # Remove any genes that do not have any entrez identifiers
+  res_sig_entrez <- subset(res_sig, is.na(entrez) == FALSE)
+  # Create a matrix of gene log2 fold changes
+  gene_matrix <- res_sig_entrez$log2FoldChange
+  # Add the entrezID's as names for each logFC entry
+  names(gene_matrix) <- res_sig_entrez$entrez
+  
+  gps <- unique(metadata$Group)
+  nms <- paste(gps, collapse = "-")
+  
+  # Check the organism passed to select a DB
+  if (organism == "mmu") { 
+    db <- "org.Mm.eg.db"
+  } else if(organism == "hsa") { 
+      db <- "org.Hs.eg.db"
+  } else { 
+        stop("Need to pass hsa or mmu as organism") 
+    }
+  # - - - - - - - - - - - - -
+  # Enrich with KEGG database
+  # - - - - - - - - - - - - -
+  print("Generate KEGG pathway results")
+  kegg_enrich <- enrichKEGG(gene = names(gene_matrix),
+                            organism = paste0(organism),
+                            pvalueCutoff = 0.05)
+  
+  # Get table of results
+  kegg_table <- head(as.data.frame(kegg_enrich), n=10) %>% 
+                arrange(desc(-log10(pvalue)))
+  
+  # KEGG plot
+  kegg_bar <- ggplot(kegg_table, aes(x=reorder(Description, -log10(pvalue)), y=-log10(pvalue))) + 
+              geom_bar(stat='identity', fill="#6B2525") + 
+              geom_col(width=0.7) + 
+              labs(title="KEGG Enrichment Pathways", x="Termos de KEGG") + 
+              coord_flip()
+  
+  ggsave(paste0("kegg_bar_",nms,".png"), plot=kegg_bar, device="png")
+  print("|-----DONE-----|")
+  
+  # - - - - - - - - - - - - -
+  # Enrich with GO
+  # - - - - - - - - - - - - -
+  print("Generate GO barplot")
+  
+  go_enrich <- enrichGO(gene = names(gene_matrix), 
+                        OrgDb = paste0(db),
+                        ont = "BP",
+                        pvalueCutoff = 0.05)
+  
+  # Get table of results
+  go_table <- head(as.data.frame(go_enrich), n=10) %>% 
+              arrange(desc(-log10(pvalue)))
+  
+  # Plot results
+  go_bar <- ggplot(go_table, aes(x=reorder(Description, -log10(pvalue)), y=-log10(pvalue))) + 
+            geom_bar(stat='identity', fill="#157296") + 
+            geom_col(width=0.7) + 
+            labs(title="GO Biological Pathways", x="Termos de GO") + 
+            coord_flip()
+  
+  ggsave(paste0("go_bar_",nms,".png"), plot=go_bar, device="png")
+  print("|-----DONE-----|")
+}
 
-# Load required libraries
-library(clusterProfiler)
-library(ReactomePA)
-library(KEGG.db)
-library(DOSE)
-library(org.Mm.eg.db)
-library(org.Hs.eg.db)
-
-# Remove any genes that do not have any entrez identifiers
-results_sig_entrez <- subset(resLRT_sig, is.na(entrez) == FALSE)
-
-# Create a matrix of gene log2 fold changes
-gene_matrix <- results_sig_entrez$log2FoldChange
-
-# Add the entrezID's as names for each logFC entry
-names(gene_matrix) <- results_sig_entrez$entrez
-
-
-# - - - - - - - - - - - - -
-# Enrich with KEGG database
-# - - - - - - - - - - - - -
-print("Generate KEGG barplot")
-
-kegg_enrich <- enrichKEGG(gene = names(gene_matrix),
-                          organism = 'mmu',
-                          pvalueCutoff = 0.05)
-
-# Get table of results
-kegg_table <- head(as.data.frame(kegg_enrich), n=10) %>% arrange(desc(-log10(pvalue)))
-
-# KEGG plot
-kegg_bar <- ggplot(kegg_table, aes(x=reorder(Description, -log10(pvalue)), y=-log10(pvalue))) + geom_bar(stat='identity', fill="#6B2525") + geom_col(width=0.7) + labs(title="KEGG Enrichment Pathways", x="Termos de KEGG") + coord_flip()
-
-ggsave("kegg_bar.png", plot=kegg_bar, device="png")
-
-
-# - - - - - - - - - - - - -
-# Enrich with GO
-# - - - - - - - - - - - - -
-print("Generate GO barplot")
-
-go_enrich <- enrichGO(gene = names(gene_matrix), 
-                      OrgDb = "org.Mm.eg.db",
-                      ont = "BP",
-                      pvalueCutoff = 0.05)
-
-# Get table of results
-go_table <- head(as.data.frame(go_enrich), n=10) %>% arrange(desc(-log10(pvalue)))
-
-# Plot results
-go_bar <- ggplot(go_table, aes(x=reorder(Description, -log10(pvalue)), y=-log10(pvalue))) + geom_bar(stat='identity', fill="#157296") + geom_col(width=0.7) + labs(title="GO Biological Pathways", x="Termos de GO") + coord_flip()
-
-ggsave("go_bar.png", plot=go_bar, device="png")
+runner()
