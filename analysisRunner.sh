@@ -7,13 +7,6 @@ O       o O       o O       o O       o O       o O
 | | O | | | | O | | | | O | | | | O | | | | O | | | | O 
 | o   O | | o   O | | o   O | | o   O | | o   O | | o 
 o       O o       O o       O o       O o       O o   
-
-██████  ███    ██  █████        ███████ ███████  ██████  
-██   ██ ████   ██ ██   ██       ██      ██      ██    ██ 
-██████  ██ ██  ██ ███████ █████ ███████ █████   ██    ██ 
-██   ██ ██  ██ ██ ██   ██            ██ ██      ██ ▄▄ ██ 
-██   ██ ██   ████ ██   ██       ███████ ███████  ██████  
-                                                    ▀▀ 
 EOF
 }
 
@@ -53,7 +46,8 @@ while [ "$1" != "" ]; do
             shift
             SAMPLES="$1"
         ;;
-        -h | --help) usage
+        -h | --help)
+            usage
             exit
         ;;
         * )
@@ -167,8 +161,8 @@ echo -e $SAMLIST |& tee -a "../../loggersAT${STARTDT}.log"
 echo -e "Starting featureCounts for final counts, please wait... \n" |& tee -a "../../loggersAT${STARTDT}.log"
 featureCounts -a ../../annotation/* -o ../../results/5_final_counts/final_counts.txt -g 'gene_name' -T 4 $SAMLIST |& tee -a "../../loggersAT${STARTDT}.log"
 echo -e "featureCounts has ended, counts will be used to DE analysis! \n" |& tee -a "../../loggersAT${STARTDT}.log"
-# Move final counts file to the DE analysis folder
-mv final_counts.txt ../../DE_analysis/
+# Copy final counts file to the DE analysis folder
+cp final_counts.txt ../../DE_analysis/
 # Back to the main folder
 cd ../../
 

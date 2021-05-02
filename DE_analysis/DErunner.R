@@ -1,4 +1,7 @@
-# Adapted script for DE analysis and data visualization
+# This script has been firstly made by Thomas W. Battaglia (https://github.com/twbattaglia/RNAseq-workflow)
+# It has been shortened and adapted for DE analysis and data visualization only
+# Refactored creating functions and adaptation for ~ 3+ groups  analysis computing pairwise and LRT tests
+# Adapted by Thomaz Guadagnini (https://github.com/ThomazGR | thomaz@vivaldi.net)
 
 # Install R base and R dev
 # Install BiocManager first
@@ -41,7 +44,7 @@ library(org.Hs.eg.db)
 # - - - - - - - - - - - - - 
 # - skip first row (general command info)
 # - make row names the gene identifiers
-countdata <- read.table("final_counts.txt", header = TRUE, skip = 1, row.names = 1)
+countdata <- read.table("./DE_analysis/final_counts_m24.txt", header = TRUE, skip = 1, row.names = 1)
 # Remove .sam + '..' from column identifiers
 colnames(countdata) <- gsub(".sam", "", colnames(countdata), fixed = T)
 colnames(countdata) <- gsub("X", "", colnames(countdata), fixed = T)
@@ -56,7 +59,7 @@ if(idcd == "y"){ } else if(idcd == "n"){ stop("Count data IDs are not correct. F
 # Import metadata file
 # - - - - - - - - - - - - - 
 # Import and make row names the matching sampleID's from the countdata
-metadata <- read.delim("metadata.txt", sep=",",row.names = 1)
+metadata <- read.delim("./DE_analysis/metadata.txt", sep=",",row.names = 1)
 # Add sampleID's to the mapping file
 metadata$sampleid <- row.names(metadata)
 # Reorder sampleID's to match featureCounts column order. 
@@ -71,6 +74,16 @@ runner <- function(){
   if(length(unique(metadata$Group)) > 2){
     ddsMat <- deMatrix(countdata, metadata)
     results <- de3gpPWC_LRT(ddsMat, unique(metadata$Group))
+    results_sig <- geneAnnotation(results, "mmu")
+    generateTables(results_sig)
+    vennTables(results_sig)
+    generateHeatmap(ddsMat, results_sig)
+    generateVolcanos(results)
+    pathwayAnalysis(results_sig, "mmu")
+    print("Everything has ended!")
+  } else if(length(unique(metadata$Group)) == 2){
+    ddsMat <- deMatrix(countdata, metadata)
+    results <- de2gp(ddsMat)
     results_sig <- geneAnnotation(results, "mmu")
     generateTables(results_sig)
     vennTables(results_sig)
@@ -108,9 +121,10 @@ deMatrix <- function(countdata, metadata) {
 # - ddsMat : Matrix from DESeq2 function
 de2gp <- function(ddsMat) {
   print("Get results from Walden's test for 2 groups")
-  results <- results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05)
+  results <- list(results(ddsMat, pAdjustMethod = "fdr", alpha = 0.05))
+  names(results) <- paste(unique(metadata$Group), collapse = "vs")
   print("|-----DONE-----|")
-  return(list(results))
+  return(results)
 }
 
 # - - - - - - - - - - - - - 
@@ -219,7 +233,7 @@ generateHeatmap <- function(ddsMat, res_sig){
     # Specify colors you want to annotate the columns by.
     
   }  else if(length(res_sig) == 1) {
-      results_sig <- res_sig
+      results_sig <- res_sig[[1]]
       gps <- unique(metadata$Group)
       # Specify colors you want to annotate the columns by.
       }
@@ -237,7 +251,7 @@ generateHeatmap <- function(ddsMat, res_sig){
     row.names = colData(ddsMat_rlog)$sampleid
   )
   ann_colors = list(
-      Group = c("CT" = "blue", "Prop" = "orange", "Res" = "black"),
+      Group = c("Control" = "blue", "Group1" = "orange"), # Add "Group2" = "black" if 3 groups are being compared
       Replicate = c(R1 = "red", R2 = "green")
     )
   nms <- paste(gps, collapse = "-")
@@ -260,7 +274,7 @@ generateHeatmap <- function(ddsMat, res_sig){
 # - - - - - - - - - - - - - 
 # - results : Results gathered from 2 groups only or +3 groups functions
 generateVolcanos <- function(results){
-  if(length(results) > 2){ res <- results[-4] } else{}
+  if(length(results) > 2){ res <- results[-4] } else{ res <- results }
   print("Starting generating volcano plot(s)")
   for (idx in 1:length(res)){
     # Gather Log-fold change and FDR-corrected pvalues from deseq2 results
@@ -304,12 +318,12 @@ generateVolcanos <- function(results){
 # - res_sig : Gathered results from significant genes
 # - organism : Passing organism to be used for annotation. "hsa" for homo sapiens or "mmu" mus musculus
 pathwayAnalysis <- function(results_sig, organism){
+  print("Preprocessing LRT results data if exists")
   if(length(results_sig) > 2){
     res_sig <- results_sig[["resLRT_sig"]]
   }  else if(length(results_sig) == 1) {
-    res_sig <- results_sig
+    res_sig <- results_sig[[1]]
   }
-  print("Preprocessing LRT results data")
   # Remove any genes that do not have any entrez identifiers
   res_sig_entrez <- subset(res_sig, is.na(entrez) == FALSE)
   # Create a matrix of gene log2 fold changes
