@@ -27,7 +27,7 @@ After installing all dependencies and BiocManager, start installing the packages
 install.packages(c("httr", "curl", "RCurl", "openssl", "XML"))
 ```
 ```
-BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","biomaRt","ReactomePA","ggsci","gage","dplyr","topGO","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","genefilter","GO.db","KEGG.db","RColorBrewer")
+BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","AnnotationDbi","ReactomePA","gage","ggsci","dplyr","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","KEGG.db","RColorBrewer"))
 ```
 ## Guideline for the workflow
 After installing everything, it's time to get ready and run the analysis.<br/>
@@ -48,14 +48,24 @@ bash directoryBuilder.sh
 ```
 - You will be able to see that a whole new directory have been created to supply the analysis.<br/><br/>
 Open the rnaseq_workflow folder and move your sample fastq files to the input folder.<br/><br/>
-Now open the analysisRunner file and change the SAMPLES="" adding the file names of your own samples separated by single space and save, e.g.: SAMPLES="sample1 sample2 sample3".<br/><br/>
+Now you will need to run one of the main files. Type ``` bash analysisRunner.sh -h ``` in the console to check all commands used in the script, it will return this:<br/>
+```
+Command line usage: bash analysisRunner.sh -D -O hsa -T n_threads -S sample_1,sample_2,sample_3,sample_n
+
+    -D |   --download   (Optional) If called, indexes and annotation files will be downloaded
+    -O |   --organism   (Required) hsa for homo sapies or mmu for mus musculus samples
+    -T |   --threads    (Optional) If no number of threads to be used is passed, 4 is the default number
+    -S |   --samples    (Required) Name of .fastq files to be used in the analysis. Each file has to be separated by comma ,
+```
 After that, open the DE_analysis folder and edit the metadata.txt file to your experiment type. An example has been given to help and guide.<br/><br/>
 The next step is to run the analysisRunner file typing:<br/>
 ```
-bash analysisRunner.sh
+bash analysisRunner.sh [arguments]
 ```
-- After running the file, it will iterate over every .fastq file given in the SAMPLES variable and result in a final_counts.txt file.<br/>
-Then, with this count table and the metadata prepared earlier you will be able to run the R script from source (either on command line or RStudio).<br/>
+- After running the file, it will iterate over every .fastq file given in the SAMPLES variable and result in a final_counts.txt file.<br/><br/>
+Then, with this count table and the metadata prepared earlier you will be able to run the R script from source (either on command line or RStudio).<br/><br/>
+Before running the R script you will need to change group names on line 254 in order to run flawlessly changing group names, e.g. <br/><br/>
+If you have two groups CONTROL and GROUP1 in your metadata you will have to change to "CONTROL" = "blue", "GROUP1" = "orange". If you have three groups add "GROUP2" = "black" in the end. Also the replicates will have to be changed to the exact ones in the metadata.
 ```
 Rscript DErunner.R
 ```

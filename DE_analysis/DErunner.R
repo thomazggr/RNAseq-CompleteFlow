@@ -1,4 +1,7 @@
-# Adapted script for DE analysis and data visualization
+# This script has been firstly made by Thomas W. Battaglia (https://github.com/twbattaglia/RNAseq-workflow)
+# It has been shortened and adapted for DE analysis and data visualization only
+# Refactored creating functions and adaptation for ~ 3+ groups  analysis computing pairwise and LRT tests
+# Adapted by Thomaz Guadagnini (https://github.com/ThomazGR | thomaz@vivaldi.net)
 
 # Install R base and R dev
 # Install BiocManager first
@@ -248,7 +251,7 @@ generateHeatmap <- function(ddsMat, res_sig){
     row.names = colData(ddsMat_rlog)$sampleid
   )
   ann_colors = list(
-      Group = c("Control" = "blue", "Selec2" = "orange"),
+      Group = c("Control" = "blue", "Group1" = "orange"), # Add "Group2" = "black" if 3 groups are being compared
       Replicate = c(R1 = "red", R2 = "green")
     )
   nms <- paste(gps, collapse = "-")
