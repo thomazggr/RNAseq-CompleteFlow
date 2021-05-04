@@ -14,12 +14,13 @@ EOF
 usage()
 {
 cat << EOF
-    Command line usage: bash analysisRunner.sh -D -O hsa -T n_threads -S sample_1,sample_2,sample_3,sample_n
+    Command line usage: bash analysisRunner.sh -D -P -O hsa -T n_threads -S sample_1,sample_2,sample_3,sample_n
 
     -D |   --download   (Optional) If called, indexes and annotation files will be downloaded
     -O |   --organism   (Required) hsa for homo sapies or mmu for mus musculus samples
     -T |   --threads    (Optional) If no number of threads to be used is passed, 4 is the default number
     -S |   --samples    (Required) Name of .fastq files to be used in the analysis. Each file has to be separated by comma ,
+    -P |   --paired     (Optional) Pass -pe or --paired if you are running paired-ended analysis. Sample's file name has to be as sample1_R1 sample1_R2 but only sample1 will be passed.
 
 EOF
 }
@@ -27,6 +28,7 @@ EOF
 # Declaring optional variables
 THREADS=4
 DOWNLOAD="N"
+PE="N"
 
 # While loop to parse all arguments
 while [ "$1" != "" ]; do
@@ -45,6 +47,10 @@ while [ "$1" != "" ]; do
         -S | --samples)
             shift
             SAMPLES="$1"
+        ;;
+        -P | --paired)
+            shift
+            PE="Y"
         ;;
         -h | --help)
             usage
@@ -69,14 +75,23 @@ fi
 
 # All samples that has passed as argument will be used here to be passed to the for loop
 SAMPLESREP=`echo -e $SAMPLES | tr ',' ' '`
-for SAMPLE in $SAMPLESREP; do
-    if [ ! -f input/${SAMPLE}.fastq.gz ]
-    then
-        echo -e "The file ${SAMPLE}.fastq.gz does not exist or is not placed in the input folder. Please check the name and the folder!"
-        exit
-    fi
-done
-
+if [ "$PE" == "Y" ]; then # Paired ended samples
+    for SAMPLE in $SAMPLESREP; do
+        if [ ! -f input/${SAMPLE}_1.fastq.gz ] && [ ! -f input/${SAMPLE}_2.fastq.gz ]
+        then
+            echo -e "The file ${SAMPLE}.fastq.gz does not exist or is not placed in the input folder. Please check the name and the folder!"
+            exit
+        fi
+    done
+elif [ "$PE" == "N" ]; then # Single ended samples
+    for SAMPLE in $SAMPLESREP; do
+        if [ ! -f input/${SAMPLE}.fastq.gz ]
+        then
+            echo -e "The file ${SAMPLE}.fastq.gz does not exist or is not placed in the input folder. Please check the name and the folder!"
+            exit
+        fi
+    done
+fi
 # Give the welcome package
 STARTDT="$(date +'%Y-%m-%d_%H-%M')"
 hello |& tee -a "loggersAT${STARTDT}.log"
@@ -84,6 +99,7 @@ echo -e "Hello! Welcome to the RNA-seq workflow" |& tee -a "loggersAT${STARTDT}.
 # Giving parameters away
 echo -e "Start datetime: $STARTDT" |& tee -a "loggersAT${STARTDT}.log"
 echo -e "Threads used in HISAT2: $THREADS" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "Paired-ended analysis? $PE" |& tee -a "loggersAT${STARTDT}.log" 
 echo -e "Chosen organism: $ORG" |& tee -a "loggersAT${STARTDT}.log"
 echo -e "Will download indexes and annotation files? $DOWNLOAD" |& tee -a "loggersAT${STARTDT}.log"
 echo -e "Samples used: $SAMPLESREP" |& tee -a "loggersAT${STARTDT}.log"
@@ -132,23 +148,47 @@ else
     echo -e "Something unexpected happened with the download option. Please try it again! \n" |& tee -a "loggersAT${STARTDT}.log"
 fi
 
-for SAMPLE in $SAMPLESREP; do
-    echo -e "\n----------------------------------- FILE ${SAMPLE} -----------------------------------" |& tee -a "loggersAT${STARTDT}.log"
-    # Starting fastqc
-    echo -e "Starting FastQC for quality control, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
-    fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
-    echo -e "FastQC has ended, you can check quality control at results/1_initial_qc/ \n" |& tee -a "loggersAT${STARTDT}.log"
+if [ "$PE" == "Y" ]; then # Paired ended analysis
+    for SAMPLE in $SAMPLESREP; do
+        echo -e "\n----------------------------------- FILE ${SAMPLE} -----------------------------------" |& tee -a "loggersAT${STARTDT}.log"
+        # Starting fastqc
+        echo -e "Starting FastQC for quality control, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+        fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}_R1.fastq.gz input/${SAMPLE}_R2.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
+        echo -e "FastQC has ended, you can check quality control at results/1_initial_qc/ \n" |& tee -a "loggersAT${STARTDT}.log"
 
-    # Starts trimmage using TrimGalore!
-    echo -e "Starting file trimmage using TrimGalore!, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
-    trim_galore --quality 20 --fastqc --length 25 --output_dir results/2_trimmed_output/ input/${SAMPLE}.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
-    echo -e "Trimmage has ended! \n" |& tee -a "loggersAT${STARTDT}.log"
+        # Starts trimmage using TrimGalore!
+        echo -e "Starting file trimmage using TrimGalore!, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+        trim_galore --quality 20 --fastqc --length 25 --paired --output_dir results/2_trimmed_output/ \
+        input/${SAMPLE}_R1.fastq.gz input/${SAMPLE}_R2.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
+        echo -e "Trimmage has ended! \n" |& tee -a "loggersAT${STARTDT}.log"
 
-    # Starts alignment using hisat2 for low memory comsumption ~8gb for human genome an medium sized fastq file (~1.5gb)
-    echo -e "Starting alignment using Hisat2, this can take a while, go grab a coffee! \nAnd also, please wait..." |& tee -a "loggersAT${STARTDT}.log"
-    hisat2 -p $THREADS -x index/genome -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz -S results/4_aligned_sequences/${SAMPLE}.sam |& tee -a "loggersAT${STARTDT}.log"
-    echo -e "Alignment has ended! HOORAY! \n" |& tee -a "loggersAT${STARTDT}.log"
-done
+        # Starts alignment using hisat2 for low memory comsumption ~8gb for human genome an medium sized fastq file (~1.5gb)
+        echo -e "Starting alignment using Hisat2, this can take a while, go grab a coffee! \nAnd also, please wait..." |& tee -a "loggersAT${STARTDT}.log"
+        hisat2 -p $THREADS -x index/genome -1 results/2_trimmed_output/${SAMPLE}_R1_trimmed.fq.gz -2 results/2_trimmed_output/${SAMPLE}_R2_trimmed.fq.gz \
+        -S results/4_aligned_sequences/${SAMPLE}.sam |& tee -a "loggersAT${STARTDT}.log"
+        echo -e "Alignment has ended! HOORAY! \n" |& tee -a "loggersAT${STARTDT}.log"
+    done
+elif [ "$PE" == "N" ]; then # Single ended analysis
+    for SAMPLE in $SAMPLESREP; do
+        echo -e "\n----------------------------------- FILE ${SAMPLE} -----------------------------------" |& tee -a "loggersAT${STARTDT}.log"
+        # Starting fastqc
+        echo -e "Starting FastQC for quality control, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+        fastqc -o results/1_initial_qc/ --noextract input/${SAMPLE}.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
+        echo -e "FastQC has ended, you can check quality control at results/1_initial_qc/ \n" |& tee -a "loggersAT${STARTDT}.log"
+
+        # Starts trimmage using TrimGalore!
+        echo -e "Starting file trimmage using TrimGalore!, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
+        trim_galore --quality 20 --fastqc --length 25 --output_dir results/2_trimmed_output/ input/${SAMPLE}.fastq.gz |& tee -a "loggersAT${STARTDT}.log"
+        echo -e "Trimmage has ended! \n" |& tee -a "loggersAT${STARTDT}.log"
+
+        # Starts alignment using hisat2 for low memory comsumption ~8gb for human genome an medium sized fastq file (~1.5gb)
+        echo -e "Starting alignment using Hisat2, this can take a while, go grab a coffee! \nAnd also, please wait..." |& tee -a "loggersAT${STARTDT}.log"
+        hisat2 -p $THREADS -x index/genome -U results/2_trimmed_output/${SAMPLE}_trimmed.fq.gz \
+        -S results/4_aligned_sequences/${SAMPLE}.sam |& tee -a "loggersAT${STARTDT}.log"
+        echo -e "Alignment has ended! HOORAY! \n" |& tee -a "loggersAT${STARTDT}.log"
+    done
+fi
+
 
 # Go to dir where SAM files are
 cd results/4_aligned_sequences

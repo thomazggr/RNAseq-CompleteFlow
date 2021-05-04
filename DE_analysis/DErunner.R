@@ -1,5 +1,4 @@
-# This script has been firstly made by Thomas W. Battaglia (https://github.com/twbattaglia/RNAseq-workflow)
-# It has been shortened and adapted for DE analysis and data visualization only
+# The script has been shortened and adapted for DE analysis and data visualization only
 # Refactored creating functions and adaptation for ~ 3+ groups  analysis computing pairwise and LRT tests
 # Adapted by Thomaz Guadagnini (https://github.com/ThomazGR | thomaz@vivaldi.net)
 
