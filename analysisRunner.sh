@@ -164,7 +164,7 @@ if [ "$PE" == "Y" ]; then # Paired ended analysis
 
         # Starts alignment using hisat2 for low memory comsumption ~8gb for human genome an medium sized fastq file (~1.5gb)
         echo -e "Starting alignment using Hisat2, this can take a while, go grab a coffee! \nAnd also, please wait..." |& tee -a "loggersAT${STARTDT}.log"
-        hisat2 -p $THREADS -x index/genome -1 results/2_trimmed_output/${SAMPLE}_R1_trimmed.fq.gz -2 results/2_trimmed_output/${SAMPLE}_R2_trimmed.fq.gz \
+        hisat2 -p $THREADS -x index/genome -1 results/2_trimmed_output/${SAMPLE}_R1_val_1.fq.gz -2 results/2_trimmed_output/${SAMPLE}_R2_val_2.fq.gz \
         -S results/4_aligned_sequences/${SAMPLE}.sam |& tee -a "loggersAT${STARTDT}.log"
         echo -e "Alignment has ended! HOORAY! \n" |& tee -a "loggersAT${STARTDT}.log"
     done
