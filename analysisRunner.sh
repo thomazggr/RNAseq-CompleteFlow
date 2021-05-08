@@ -20,7 +20,7 @@ cat << EOF
     -O |   --organism   (Required) hsa for homo sapies or mmu for mus musculus samples
     -T |   --threads    (Optional) If no number of threads to be used is passed, 4 is the default number
     -S |   --samples    (Required) Name of .fastq files to be used in the analysis. Each file has to be separated by comma ,
-    -P |   --paired     (Optional) Pass -pe or --paired if you are running paired-ended analysis. Sample's file name has to be as sample1_R1 sample1_R2 but only sample1 will be passed.
+    -P |   --paired     (Optional) Pass -P or --paired if you are running paired-ended analysis. Sample's file name has to be as sample1_R1 sample1_R2 but only sample1 will be passed.
 
 EOF
 }
@@ -77,7 +77,7 @@ fi
 SAMPLESREP=`echo -e $SAMPLES | tr ',' ' '`
 if [ "$PE" == "Y" ]; then # Paired ended samples
     for SAMPLE in $SAMPLESREP; do
-        if [ ! -f input/${SAMPLE}_1.fastq.gz ] && [ ! -f input/${SAMPLE}_2.fastq.gz ]
+        if [ ! -f input/${SAMPLE}_R1.fastq.gz ] && [ ! -f input/${SAMPLE}_R2.fastq.gz ]
         then
             echo -e "The file ${SAMPLE}.fastq.gz does not exist or is not placed in the input folder. Please check the name and the folder!"
             exit
@@ -131,12 +131,12 @@ if [ "$DOWNLOAD" = "Y" ]; then
         echo -e "Downloading indexed mus musculus genome from Hisat2, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
         wget -P index/ https://genome-idx.s3.amazonaws.com/hisat/mm10_genome.tar.gz
         tar -xzf index/mm10_genome.tar.gz
-        cd index/mm10
+        rm index/mm10_genome.tar.gz
+        cd mm10
         # Genome indexes files to the index folder and remove left over folders from the download, changing the dir from the hisat2 command
-        mv * ../
+        mv * ../index
         cd ..
-        rm -r mm10/ mm10_genome.tar.gz
-        cd ..
+        rm -r mm10/
         echo -e "Genome indexes has been downloaded! \n" |& tee -a "loggersAT${STARTDT}.log"
     else
         echo -e "The $ORG organism option does not exist right now. If this is a valid organism please make a formal request to be added in the workflow sending an email to thomaz@vivaldi.net \n" |& tee -a "loggersAT${STARTDT}.log"
