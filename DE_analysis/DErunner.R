@@ -4,9 +4,9 @@
 
 # Install R base and R dev
 # Install BiocManager first
-# sudo apt install r-cran-xml r-cran-xml2 libxml2-dev libcurl4-openssl-dev libssl-dev 
+# sudo apt install libxml2-dev libcurl4-openssl-dev libssl-dev 
 # install.packages(c("httr", "curl", "RCurl", "openssl", "XML"))
-# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","AnnotationDbi","ReactomePA","gage","ggsci","dplyr","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","KEGG.db","RColorBrewer"))
+# BiocManager::install(c("DESeq2","ggplot2","clusterProfiler","AnnotationDbi","ReactomePA","gage","ggsci","dplyr","DOSE","org.Hs.eg.db","org.Mm.eg.db","pheatmap","RColorBrewer"))
 
 # Load general libraries
 library(ggplot2)
@@ -33,7 +33,6 @@ library(RColorBrewer)
 # Pathway analysis libraries
 library(clusterProfiler)
 library(ReactomePA)
-library(KEGG.db)
 library(DOSE)
 library(org.Mm.eg.db)
 library(org.Hs.eg.db)
@@ -47,6 +46,7 @@ countdata <- read.table("./DE_analysis/final_counts_m24.txt", header = TRUE, ski
 # Remove .sam + '..' from column identifiers
 colnames(countdata) <- gsub(".sam", "", colnames(countdata), fixed = T)
 colnames(countdata) <- gsub("X", "", colnames(countdata), fixed = T)
+colnames(countdata) <- gsub("..", "", colnames(countdata), fixed = T)
 # Remove length/char columns
 countdata <- countdata[ ,c(-1:-5)]
 # Make sure ID's are correct
