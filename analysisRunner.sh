@@ -17,7 +17,7 @@ cat << EOF
     Command line usage: bash analysisRunner.sh -D -P -O hsa -T n_threads -S sample_1,sample_2,sample_3,sample_n
 
     -D |   --download   (Optional) If called, indexes and annotation files will be downloaded
-    -O |   --organism   (Required) hsa for homo sapies or mmu for mus musculus samples
+    -O |   --organism   (Required) hsa for homo sapiens or mmu for mus musculus samples
     -T |   --threads    (Optional) If no number of threads to be used is passed, 4 is the default number
     -S |   --samples    (Required) Name of .fastq files to be used in the analysis. Each file has to be separated by comma ,
     -P |   --paired     (Optional) Pass -P or --paired if you are running paired-ended analysis. Sample's file name has to be as sample1_R1 sample1_R2 but only sample1 will be passed.
