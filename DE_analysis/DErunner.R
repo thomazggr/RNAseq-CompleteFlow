@@ -134,23 +134,30 @@ de2gp <- function(ddsMat) {
 de3gpPWC_LRT <- function(ddsMat, groups){
   print("Get results from pairwise comparison for 3 groups")
 
+  # Get all combinations for groups in a matrix and instantiate both names and results data types
   comb <- combn(groups, 2)
   names <- vector(mode="character", length=(ncol(comb) + 1))
   results <- list()
 
-  for(c in 1:(ncol(comb) - 1)){
+  # Start loop through all columns of combinatory matrix. Each column is a combination
+  # Column values is atributed to _vl_, names[index] and results[index] is atributed to each combination
+  # Results is done pairwise
+  for(c in 1:ncol(comb)){
     vl <- comb[,c]
     names[c] <- paste0(vl[1], "vs", vl[2])
     results[c] <- results(ddsMat, contrast = c("Group", vl[1], vl[2]), pAdjustMethod = "fdr", alpha = 0.05)
   }
-
-  names[ncol(comb)] <- "resLRT"
-
   print("|-----DONE-----|")
   
   print("Compute LRT for 3+ groups and save results")
+  # Compute likelihood-ratio test for all groups
   ddsLRT <- DESeq(ddsMat, test="LRT", reduced= ~1)
-  results[ncol(comb)] <- results(ddsLRT)
+  # Last name will always be LRT results then make it so
+  # Last result index will always be the result from ddsLRT
+  names[ncol(comb) + 1] <- "resLRT"
+  results[ncol(comb) + 1] <- results(ddsLRT)
+
+  # Atribute names of results as names that have been built before and return the results
   names(results) <- names
   print("|-----DONE-----|")
   return(results)
@@ -168,16 +175,20 @@ geneAnnotation <- function(results, organism){
   # Start loop in every result passed
   print("Get gene description, symbol and ENTREZID for every significant result. Also filter Gm and Rik genes.")
   for (idx in 1:length(results)){
+    # Defining subset using pvalue less then 0.05 to be used as significant
     results[[idx]] <- subset(results[[idx]], pvalue < 0.05)
     
+    # Get description for each significant gene using GENENAME from mapIds
     results[[idx]]$description <- mapIds(x = db,
                               keys = row.names(results[[idx]]),
                               column = "GENENAME",
                               keytype = "SYMBOL",
                               multiVals = "first")
 
+    # Gene symbol was already retrieved as row.names
     results[[idx]]$symbol <- row.names(results[[idx]])
 
+    # Retrieve ENTREZ ID for each gene
     results[[idx]]$entrez <- mapIds(x = db,
                          keys = row.names(results[[idx]]),
                          column = "ENTREZID",
@@ -188,6 +199,7 @@ geneAnnotation <- function(results, organism){
     results[[idx]] <- results[[idx]][!grepl("Gm[0-9]{3}", results[[idx]]$symbol),]
     results[[idx]] <- results[[idx]][!grepl("[0-9]Rik", results[[idx]]$symbol),]
   }
+  # Change name of results as _sig and return it
   for(i in 1:length(names(results))){ names(results)[i] <- paste0(names(results)[i], "_sig") }
   print("|-----DONE-----|")
   return(results)
@@ -247,19 +259,24 @@ generateHeatmap <- function(ddsMat, res_sig){
   mat <- assay(ddsMat_rlog[row.names(results_sig)])[1:30, ]
   
   # Choose which column variables you want to annotate the columns by.
-  annotation_col = data.frame(
+  annotation_col <- data.frame(
     Group = factor(colData(ddsMat_rlog)$Group),
     Replicate = factor(colData(ddsMat_rlog)$Replicate),
     row.names = colData(ddsMat_rlog)$sampleid
   )
-  ann_colors = list(
-      Group = c("Control" = "blue", "Group1" = "orange"), # Add "Group2" = "black" if 3 groups are being compared
-      Replicate = c(R1 = "red", R2 = "green")
+
+  # TODO: Needs to be automated, try to find some way to get replicates names without ""
+  reps <- length(ddsMat$Replicate)
+  ann_colors <- list(
+      Group = brewer.pal(length(gps), "Set1"), # Add "Group2" = "black" if 3 groups are being compared
+      Replicate =  brewer.pal(reps, "Dark2") # Modify replicates if needed
     )
   nms <- paste(gps, collapse = "-")
   print("Generate heatmap")
   # Make Heatmap with pheatmap function.
   # See more in documentation for customization
+  # color = colorRampPalette(brewer.pal(11, "RdYlGn"))(255) For red -> green color
+  # color = colorRampPalette(brewer.pal(11, "RdYlBu"))(255) For red -> blue color
   pheatmap(mat = mat, 
            color = colorRampPalette(brewer.pal(9, "YlOrBr"))(255), 
            scale = "row", 
