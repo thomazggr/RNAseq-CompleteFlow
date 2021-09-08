@@ -114,6 +114,7 @@ deMatrix <- function(countdata, metadata) {
   return(ddsMat)
 }
 
+
 # - - - - - - - - - - - - - 
 # Results for 2 groups only
 # - - - - - - - - - - - - - 
@@ -134,21 +135,30 @@ de2gp <- function(ddsMat) {
 de3gpPWC_LRT <- function(ddsMat, groups){
   print("Get results from pairwise comparison for 3 groups")
 
-  names <- c(paste0(groups[1],"vs",groups[2])
-            , paste0(groups[1],"vs",groups[3])
-            , paste0(groups[2],"vs",groups[3])
-            , "resLRT")
-
+  # Get all combinations for groups in a matrix and instantiate both names and results data types
+  comb <- combn(groups, 2)
+  names <- vector(mode="character", length=(ncol(comb) + 1))
   results <- list()
-  
-  results[1] <- results(ddsMat, contrast = c("Group", groups[1], groups[2]), pAdjustMethod = "fdr", alpha = 0.05)
-  results[2] <- results(ddsMat, contrast = c("Group", groups[1], groups[3]), pAdjustMethod = "fdr", alpha = 0.05)
-  results[3] <- results(ddsMat, contrast = c("Group", groups[2], groups[3]), pAdjustMethod = "fdr", alpha = 0.05)
+
+  # Start loop through all columns of combinatory matrix. Each column is a combination
+  # Column values is atributed to _vl_, names[index] and results[index] is atributed to each combination
+  # Results is done pairwise
+  for(c in 1:ncol(comb)){
+    vl <- comb[,c]
+    names[c] <- paste0(vl[1], "vs", vl[2])
+    results[c] <- results(ddsMat, contrast = c("Group", vl[1], vl[2]), pAdjustMethod = "fdr", alpha = 0.05)
+  }
   print("|-----DONE-----|")
   
   print("Compute LRT for 3+ groups and save results")
+  # Compute likelihood-ratio test for all groups
   ddsLRT <- DESeq(ddsMat, test="LRT", reduced= ~1)
-  results[4] <- results(ddsLRT)
+  # Last name will always be LRT results then make it so
+  # Last result index will always be the result from ddsLRT
+  names[ncol(comb) + 1] <- "resLRT"
+  results[ncol(comb) + 1] <- results(ddsLRT)
+
+  # Atribute names of results as names that have been built before and return the results
   names(results) <- names
   print("|-----DONE-----|")
   return(results)
@@ -157,6 +167,7 @@ de3gpPWC_LRT <- function(ddsMat, groups){
 # - - - - - - - - - - - - - 
 # Gene annotation and retrieves significant genes
 # - - - - - - - - - - - - - 
+
 # - results : Results gathered from 2 groups only or +3 groups functions
 # - organism : Passing organism to be used for annotation. "hsa" for homo sapiens or "mmu" mus musculus
 geneAnnotation <- function(results, organism){
@@ -166,25 +177,33 @@ geneAnnotation <- function(results, organism){
   # Start loop in every result passed
   print("Get gene description, symbol and ENTREZID for every significant result. Also filter Gm and Rik genes.")
   for (idx in 1:length(results)){
-    results[[idx]] <- subset(results[[idx]], pvalue < 0.01)
+    # Defining subset using pvalue less then 0.05 to be used as significant
+    results[[idx]] <- subset(results[[idx]], pvalue < 0.05)
     
+    # Get description for each significant gene using GENENAME from mapIds
+  
     results[[idx]]$description <- mapIds(x = db,
                               keys = row.names(results[[idx]]),
                               column = "GENENAME",
                               keytype = "SYMBOL",
                               multiVals = "first")
 
+    # Gene symbol was already retrieved as row.names
     results[[idx]]$symbol <- row.names(results[[idx]])
 
-    results[[idx]]$entrez <- mapIds(x = org.Mm.eg.db,
+    # Retrieve ENTREZ ID for each gene
+    results[[idx]]$entrez <- mapIds(x = db,
                          keys = row.names(results[[idx]]),
                          column = "ENTREZID",
                          keytype = "SYMBOL",
                          multiVals = "first")
     
+    # Removing Gm and Rik genes
     results[[idx]] <- results[[idx]][!grepl("Gm[0-9]{3}", results[[idx]]$symbol),]
     results[[idx]] <- results[[idx]][!grepl("[0-9]Rik", results[[idx]]$symbol),]
   }
+  # Change name of results as _sig and return it
+
   for(i in 1:length(names(results))){ names(results)[i] <- paste0(names(results)[i], "_sig") }
   print("|-----DONE-----|")
   return(results)
@@ -193,6 +212,7 @@ geneAnnotation <- function(results, organism){
 # - - - - - - - - - - - - - 
 # Generate table(s) from significant genes
 # - - - - - - - - - - - - - 
+
 # - res_sig : Gathered results from significant genes
 generateTables <- function(res_sig){
   print("Generate annotated significant genes")
@@ -244,11 +264,16 @@ generateHeatmap <- function(ddsMat, res_sig){
   mat <- assay(ddsMat_rlog[row.names(results_sig)])[1:30, ]
   
   # Choose which column variables you want to annotate the columns by.
+
   annotation_col = data.frame(
     Group = factor(colData(ddsMat_rlog)$Group),
     Replicate = factor(colData(ddsMat_rlog)$Replicate),
     row.names = colData(ddsMat_rlog)$sampleid
   )
+
+
+  # TODO: Needs to be automated, try to find some way to get replicates names without ""
+
   ann_colors = list(
       Group = c("Control" = "blue", "Group1" = "orange"), # Add "Group2" = "black" if 3 groups are being compared
       Replicate = c(R1 = "red", R2 = "green")
@@ -257,6 +282,9 @@ generateHeatmap <- function(ddsMat, res_sig){
   print("Generate heatmap")
   # Make Heatmap with pheatmap function.
   # See more in documentation for customization
+  # color = colorRampPalette(brewer.pal(11, "RdYlGn"))(255) For red -> green color
+  # color = colorRampPalette(brewer.pal(11, "RdYlBu"))(255) For red -> blue color
+
   pheatmap(mat = mat, 
            color = colorRampPalette(brewer.pal(9, "YlOrBr"))(255), 
            scale = "row", 

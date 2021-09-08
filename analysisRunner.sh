@@ -1,4 +1,4 @@
-# Drawing the hello entrance from the scrip
+# Drawing the hello entrance from the script
 hello()
 {
 cat << EOF
@@ -95,6 +95,9 @@ fi
 # Give the welcome package
 STARTDT="$(date +'%Y-%m-%d_%H-%M')"
 hello |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n ANALYSIS PARAMETERS TO BE USED" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
 echo -e "Hello! Welcome to the RNA-seq workflow" |& tee -a "loggersAT${STARTDT}.log"
 # Giving parameters away
 echo -e "Start datetime: $STARTDT" |& tee -a "loggersAT${STARTDT}.log"
@@ -107,6 +110,9 @@ echo -e "Samples used: $SAMPLESREP" |& tee -a "loggersAT${STARTDT}.log"
 # Check if download argument has been passed, YES argument will download annotation and index for the organism selected (either hsa or mmu)
 # If download has not been passed it will use index and annotation files inside each folder
 if [ "$DOWNLOAD" = "Y" ]; then
+    echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
+    echo -e "\n DOWNLOADING BOTH ANNOTATION AND INDEX FOR ORGANISM" |& tee -a "loggersAT${STARTDT}.log"
+    echo -e "\n # # # # # # # # # # # # # # # # # # # # \n" |& tee -a "loggersAT${STARTDT}.log"
     if [ "$ORG" = "hsa" ]; then
         # Downloads human genome annotation to the exact folder
         echo -e "Downloading .gtf annotation file, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
@@ -147,6 +153,11 @@ elif [ "$DOWNLOAD" = "N" ]; then
 else
     echo -e "Something unexpected happened with the download option. Please try it again! \n" |& tee -a "loggersAT${STARTDT}.log"
 fi
+
+
+echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n STARTING QC, TRIMMAGE AND ALIGNMENT FOR EVERY FILE" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n # # # # # # # # # # # # # # # # # # # # \n" |& tee -a "loggersAT${STARTDT}.log"
 
 if [ "$PE" == "Y" ]; then # Paired ended analysis
     for SAMPLE in $SAMPLESREP; do
@@ -197,6 +208,9 @@ cd results/4_aligned_sequences
 SAMLIST=$(ls -t ./*.sam | tr '\n' ' ')
 echo -e $SAMLIST |& tee -a "../../loggersAT${STARTDT}.log"
 
+echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n STARTING FEATURECOUNTS FOR ALL SAM FILES" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n # # # # # # # # # # # # # # # # # # # # \n" |& tee -a "loggersAT${STARTDT}.log"
 # Final counts to be used in DE analysis
 echo -e "Starting featureCounts for final counts, please wait... \n" |& tee -a "../../loggersAT${STARTDT}.log"
 featureCounts -a ../../annotation/* -o ../../results/5_final_counts/final_counts.txt -g 'gene_name' -T 4 $SAMLIST |& tee -a "../../loggersAT${STARTDT}.log"
@@ -206,6 +220,9 @@ cp final_counts.txt ../../DE_analysis/
 # Back to the main folder
 cd ../../
 
+echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n STARTING MULTIQC SUMMARIZE RESULTS" |& tee -a "loggersAT${STARTDT}.log"
+echo -e "\n # # # # # # # # # # # # # # # # # # # # \n" |& tee -a "loggersAT${STARTDT}.log"
 # Run last analysis using MultiQC
 echo -e "MultiQC has started, please wait... \n" |& tee -a "loggersAT${STARTDT}.log"
 multiqc results --outdir results/6_multiQC |& tee -a "loggersAT${STARTDT}.log"
