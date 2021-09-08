@@ -114,6 +114,7 @@ deMatrix <- function(countdata, metadata) {
   return(ddsMat)
 }
 
+
 # - - - - - - - - - - - - - 
 # Results for 2 groups only
 # - - - - - - - - - - - - - 
@@ -166,6 +167,7 @@ de3gpPWC_LRT <- function(ddsMat, groups){
 # - - - - - - - - - - - - - 
 # Gene annotation and retrieves significant genes
 # - - - - - - - - - - - - - 
+
 # - results : Results gathered from 2 groups only or +3 groups functions
 # - organism : Passing organism to be used for annotation. "hsa" for homo sapiens or "mmu" mus musculus
 geneAnnotation <- function(results, organism){
@@ -179,6 +181,7 @@ geneAnnotation <- function(results, organism){
     results[[idx]] <- subset(results[[idx]], pvalue < 0.05)
     
     # Get description for each significant gene using GENENAME from mapIds
+  
     results[[idx]]$description <- mapIds(x = db,
                               keys = row.names(results[[idx]]),
                               column = "GENENAME",
@@ -200,6 +203,7 @@ geneAnnotation <- function(results, organism){
     results[[idx]] <- results[[idx]][!grepl("[0-9]Rik", results[[idx]]$symbol),]
   }
   # Change name of results as _sig and return it
+
   for(i in 1:length(names(results))){ names(results)[i] <- paste0(names(results)[i], "_sig") }
   print("|-----DONE-----|")
   return(results)
@@ -208,6 +212,7 @@ geneAnnotation <- function(results, organism){
 # - - - - - - - - - - - - - 
 # Generate table(s) from significant genes
 # - - - - - - - - - - - - - 
+
 # - res_sig : Gathered results from significant genes
 generateTables <- function(res_sig){
   print("Generate annotated significant genes")
@@ -259,17 +264,19 @@ generateHeatmap <- function(ddsMat, res_sig){
   mat <- assay(ddsMat_rlog[row.names(results_sig)])[1:30, ]
   
   # Choose which column variables you want to annotate the columns by.
-  annotation_col <- data.frame(
+
+  annotation_col = data.frame(
     Group = factor(colData(ddsMat_rlog)$Group),
     Replicate = factor(colData(ddsMat_rlog)$Replicate),
     row.names = colData(ddsMat_rlog)$sampleid
   )
 
+
   # TODO: Needs to be automated, try to find some way to get replicates names without ""
-  reps <- length(ddsMat$Replicate)
-  ann_colors <- list(
-      Group = brewer.pal(length(gps), "Set1"), # Add "Group2" = "black" if 3 groups are being compared
-      Replicate =  brewer.pal(reps, "Dark2") # Modify replicates if needed
+
+  ann_colors = list(
+      Group = c("Control" = "blue", "Group1" = "orange"), # Add "Group2" = "black" if 3 groups are being compared
+      Replicate = c(R1 = "red", R2 = "green")
     )
   nms <- paste(gps, collapse = "-")
   print("Generate heatmap")
@@ -277,6 +284,7 @@ generateHeatmap <- function(ddsMat, res_sig){
   # See more in documentation for customization
   # color = colorRampPalette(brewer.pal(11, "RdYlGn"))(255) For red -> green color
   # color = colorRampPalette(brewer.pal(11, "RdYlBu"))(255) For red -> blue color
+
   pheatmap(mat = mat, 
            color = colorRampPalette(brewer.pal(9, "YlOrBr"))(255), 
            scale = "row", 

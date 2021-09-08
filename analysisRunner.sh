@@ -154,9 +154,11 @@ else
     echo -e "Something unexpected happened with the download option. Please try it again! \n" |& tee -a "loggersAT${STARTDT}.log"
 fi
 
+
 echo -e "\n # # # # # # # # # # # # # # # # # # # #" |& tee -a "loggersAT${STARTDT}.log"
 echo -e "\n STARTING QC, TRIMMAGE AND ALIGNMENT FOR EVERY FILE" |& tee -a "loggersAT${STARTDT}.log"
 echo -e "\n # # # # # # # # # # # # # # # # # # # # \n" |& tee -a "loggersAT${STARTDT}.log"
+
 if [ "$PE" == "Y" ]; then # Paired ended analysis
     for SAMPLE in $SAMPLESREP; do
         echo -e "\n----------------------------------- FILE ${SAMPLE} -----------------------------------" |& tee -a "loggersAT${STARTDT}.log"
